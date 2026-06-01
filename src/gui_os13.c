@@ -19,35 +19,25 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.13 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.14 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
 
-#define CONTROL_TOP_Y 14
-#define LABEL_Y (CONTROL_TOP_Y + 11)
-#define STRING_Y (CONTROL_TOP_Y + 2)
-#define STRING_H 12
-#define BUTTON_Y (CONTROL_TOP_Y + 20)
-#define BUTTON_H 12
-#define SEPARATOR_Y (CONTROL_TOP_Y + 37)
-#define TERMINAL_TOP_Y (SEPARATOR_Y + 7)
-#define STATUS_H 18
-#define HOST_LABEL_X 12
-#define HOST_FIELD_X 55
-#define HOST_FIELD_W 250
-#define PORT_LABEL_X 318
-#define PORT_FIELD_X 360
-#define PORT_FIELD_W 54
-#define CONNECT_X 55
-#define HANGUP_X 140
-#define CLEAR_X 218
+#define TERMINAL_MARGIN 2
+#define CONN_HOST_X 58
+#define CONN_HOST_Y 24
+#define CONN_HOST_W 230
+#define CONN_PORT_X 58
+#define CONN_PORT_Y 46
+#define CONN_PORT_W 60
+#define CONN_STRING_H 12
+#define CONN_BUTTON_Y 74
 
-#define GID_HOST 1
-#define GID_PORT 2
-#define GID_CONNECT 3
-#define GID_DISCONNECT 4
-#define GID_CLEAR 5
+#define CGID_HOST 1
+#define CGID_PORT 2
+#define CGID_CONNECT 3
+#define CGID_CANCEL 4
 #define IGID_OK 201
 #define FGID_OK 102
 #define FGID_CANCEL 103
@@ -80,6 +70,7 @@ static UBYTE g_iac_reply[IAC_REPLY_SIZE];
 static char g_host_undo[DCT13_HOST_SIZE];
 static char g_port_undo[DCT13_PORT_SIZE];
 static char g_status[96];
+static char g_title_status[160];
 static char g_font_names[FONT_MAX][FONT_NAME_MAX];
 static UWORD g_font_count;
 static UWORD g_font_selected;
@@ -91,6 +82,7 @@ static int g_running;
 
 static void resize_terminal(void);
 static void redraw(void);
+static void copy_cfg_text(char *dst, UWORD max, const char *src);
 
 static struct StringInfo g_host_si = {
     (STRPTR)g_cfg.host, (STRPTR)g_host_undo, 0, DCT13_HOST_SIZE,
@@ -101,29 +93,26 @@ static struct StringInfo g_port_si = {
     0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-static struct IntuiText g_connect_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Connect", 0 };
-static struct IntuiText g_disconnect_text = { 0, 1, JAM2, 4, 1, 0, (UBYTE *)"Hangup", 0 };
-static struct IntuiText g_clear_text = { 0, 1, JAM2, 8, 1, 0, (UBYTE *)"Clear", 0 };
+static struct IntuiText g_connect_ok_text = { 0, 1, JAM2, 7, 1, 0, (UBYTE *)"Connect", 0 };
+static struct IntuiText g_connect_cancel_text = { 0, 1, JAM2, 8, 1, 0, (UBYTE *)"Cancel", 0 };
 
-static struct Gadget g_clear_gad = {
-    0, CLEAR_X, BUTTON_Y, 58, BUTTON_H, GFLG_GADGHCOMP, GACT_RELVERIFY,
-    GTYP_BOOLGADGET, 0, 0, &g_clear_text, 0, 0, GID_CLEAR, 0
+static struct Gadget g_connect_cancel_gad = {
+    0, 210, CONN_BUTTON_Y, 62, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_cancel_text, 0, 0, CGID_CANCEL, 0
 };
-static struct Gadget g_disconnect_gad = {
-    &g_clear_gad, HANGUP_X, BUTTON_Y, 70, BUTTON_H, GFLG_GADGHCOMP, GACT_RELVERIFY,
-    GTYP_BOOLGADGET, 0, 0, &g_disconnect_text, 0, 0, GID_DISCONNECT, 0
+static struct Gadget g_connect_ok_gad = {
+    &g_connect_cancel_gad, 130, CONN_BUTTON_Y, 70, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_ok_text, 0, 0, CGID_CONNECT, 0
 };
-static struct Gadget g_connect_gad = {
-    &g_disconnect_gad, CONNECT_X, BUTTON_Y, 76, BUTTON_H, GFLG_GADGHCOMP, GACT_RELVERIFY,
-    GTYP_BOOLGADGET, 0, 0, &g_connect_text, 0, 0, GID_CONNECT, 0
+static struct Gadget g_conn_port_gad = {
+    &g_connect_ok_gad, CONN_PORT_X, CONN_PORT_Y, CONN_PORT_W, CONN_STRING_H,
+    GFLG_GADGHCOMP, GACT_RELVERIFY | GACT_STRINGLEFT,
+    GTYP_STRGADGET, 0, 0, 0, 0, (APTR)&g_port_si, CGID_PORT, 0
 };
-static struct Gadget g_port_gad = {
-    &g_connect_gad, PORT_FIELD_X, STRING_Y, PORT_FIELD_W, STRING_H, GFLG_GADGHCOMP, GACT_RELVERIFY | GACT_STRINGLEFT,
-    GTYP_STRGADGET, 0, 0, 0, 0, (APTR)&g_port_si, GID_PORT, 0
-};
-static struct Gadget g_host_gad = {
-    &g_port_gad, HOST_FIELD_X, STRING_Y, HOST_FIELD_W, STRING_H, GFLG_GADGHCOMP, GACT_RELVERIFY | GACT_STRINGLEFT,
-    GTYP_STRGADGET, 0, 0, 0, 0, (APTR)&g_host_si, GID_HOST, 0
+static struct Gadget g_conn_host_gad = {
+    &g_conn_port_gad, CONN_HOST_X, CONN_HOST_Y, CONN_HOST_W, CONN_STRING_H,
+    GFLG_GADGHCOMP, GACT_RELVERIFY | GACT_STRINGLEFT,
+    GTYP_STRGADGET, 0, 0, 0, 0, (APTR)&g_host_si, CGID_HOST, 0
 };
 
 static struct IntuiText g_menu_connect_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Connect", 0 };
@@ -208,11 +197,11 @@ static struct Gadget g_font_up_gad = {
 static struct NewWindow g_new_window = {
     0, 0, 639, 210,
     0, 1,
-    IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_NEWSIZE | IDCMP_GADGETUP |
+    IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_NEWSIZE |
     IDCMP_VANILLAKEY | IDCMP_MENUPICK,
     WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_SIZEGADGET |
     WFLG_SIZEBRIGHT | WFLG_SIZEBBOTTOM | WFLG_ACTIVATE | WFLG_SMART_REFRESH,
-    &g_host_gad,
+    0,
     0,
     (STRPTR)TITLE,
     0,
@@ -261,6 +250,29 @@ static UWORD text_len(const char *text)
     return len;
 }
 
+static void update_window_title(void)
+{
+    UWORD i;
+    UWORD j;
+
+    if (!g_win)
+        return;
+    i = 0;
+    for (j = 0; TITLE[j] && ((ULONG)i + 1UL) < sizeof(g_title_status); ++j)
+        g_title_status[i++] = TITLE[j];
+    if (g_status[0]) {
+        if (((ULONG)i + 4UL) < sizeof(g_title_status)) {
+            g_title_status[i++] = ' ';
+            g_title_status[i++] = '-';
+            g_title_status[i++] = ' ';
+        }
+        for (j = 0; g_status[j] && ((ULONG)i + 1UL) < sizeof(g_title_status); ++j)
+            g_title_status[i++] = g_status[j];
+    }
+    g_title_status[i] = 0;
+    SetWindowTitles(g_win, (STRPTR)g_title_status, (STRPTR)-1);
+}
+
 static void copy_status(const char *text)
 {
     UWORD i;
@@ -271,7 +283,7 @@ static void copy_status(const char *text)
         ++i;
     }
     g_status[i] = 0;
-    dct13_term_status(&g_term, g_status);
+    update_window_title();
 }
 
 static void copy_status_errno(const char *prefix, int err)
@@ -756,23 +768,6 @@ static void open_font_selector(void)
     redraw();
 }
 
-static void draw_separator(void)
-{
-    WORD left;
-    WORD right;
-
-    if (!g_win)
-        return;
-    dct13_term_restore_gui_rp(&g_term);
-    left = 4;
-    right = (WORD)(g_win->Width - 5);
-    SetAPen(g_win->RPort, 0);
-    Move(g_win->RPort, left, SEPARATOR_Y);
-    Draw(g_win->RPort, right, SEPARATOR_Y);
-    Move(g_win->RPort, left, (WORD)(SEPARATOR_Y + 1));
-    Draw(g_win->RPort, right, (WORD)(SEPARATOR_Y + 1));
-}
-
 static void draw_info_dialog(struct Window *win)
 {
     if (!win)
@@ -786,7 +781,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.13", text_len("Version: v0.13"));
+    Text(win->RPort, (STRPTR)"Version: v0.14", text_len("Version: v0.14"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -858,25 +853,104 @@ static void open_info_dialog(void)
     redraw();
 }
 
-static void draw_label_text(WORD x, WORD y, WORD w, const char *text, UWORD len)
+static void draw_connect_dialog(struct Window *win)
 {
-    SetAPen(g_win->RPort, 1);
-    RectFill(g_win->RPort, x, (WORD)(y - 8), (WORD)(x + w - 1), (WORD)(y + 2));
-    SetAPen(g_win->RPort, 0);
-    SetBPen(g_win->RPort, 1);
-    SetDrMd(g_win->RPort, JAM2);
-    Move(g_win->RPort, x, y);
-    Text(g_win->RPort, (STRPTR)text, len);
+    if (!win)
+        return;
+    SetFont(win->RPort, g_term.gui_font);
+    SetBPen(win->RPort, 1);
+    SetDrMd(win->RPort, JAM1);
+    SetAPen(win->RPort, 1);
+    RectFill(win->RPort, 0, 10, (WORD)(win->Width - 1), (WORD)(win->Height - 1));
+    SetAPen(win->RPort, 0);
+    Move(win->RPort, 14, 34);
+    Text(win->RPort, (STRPTR)"Host", 4);
+    Move(win->RPort, 14, 56);
+    Text(win->RPort, (STRPTR)"Port", 4);
+    draw_box(win, CONN_HOST_X, CONN_HOST_Y, CONN_HOST_W, CONN_STRING_H);
+    draw_box(win, CONN_PORT_X, CONN_PORT_Y, CONN_PORT_W, CONN_STRING_H);
+    draw_button_box(win, &g_connect_ok_gad, "Connect", 7);
+    draw_button_box(win, &g_connect_cancel_gad, "Cancel", 8);
 }
 
-static void draw_labels(void)
+static void restore_connect_text(const char *old_host, const char *old_port)
 {
-    if (!g_win)
-        return;
-    dct13_term_restore_gui_rp(&g_term);
-    draw_label_text(HOST_LABEL_X, LABEL_Y, 36, "Host", 4);
-    draw_label_text(PORT_LABEL_X, LABEL_Y, 34, "Port", 4);
+    copy_cfg_text(g_cfg.host, DCT13_HOST_SIZE, old_host);
+    copy_cfg_text(g_cfg.port_text, DCT13_PORT_SIZE, old_port);
 }
+
+static int open_connect_dialog(void)
+{
+    struct Window *cw;
+    struct NewWindow nw;
+    struct IntuiMessage *msg;
+    ULONG cls;
+    APTR addr;
+    int done;
+    int accepted;
+    char old_host[DCT13_HOST_SIZE];
+    char old_port[DCT13_PORT_SIZE];
+
+    copy_cfg_text(old_host, DCT13_HOST_SIZE, g_cfg.host);
+    copy_cfg_text(old_port, DCT13_PORT_SIZE, g_cfg.port_text);
+    dct13_term_restore_gui_rp(&g_term);
+    nw.LeftEdge = 80;
+    nw.TopEdge = 40;
+    nw.Width = 306;
+    nw.Height = 104;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP;
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET |
+        WFLG_ACTIVATE | WFLG_SMART_REFRESH;
+    nw.FirstGadget = &g_conn_host_gad;
+    nw.CheckMark = 0;
+    nw.Title = (STRPTR)"Connect";
+    nw.Screen = 0;
+    nw.BitMap = 0;
+    nw.MinWidth = 306;
+    nw.MinHeight = 104;
+    nw.MaxWidth = 306;
+    nw.MaxHeight = 104;
+    nw.Type = WBENCHSCREEN;
+    cw = OpenWindow(&nw);
+    if (!cw) {
+        copy_status("Connect window failed");
+        return 0;
+    }
+    draw_connect_dialog(cw);
+    ActivateGadget(&g_conn_host_gad, cw, 0);
+    done = 0;
+    accepted = 0;
+    while (!done) {
+        WaitPort(cw->UserPort);
+        while ((msg = (struct IntuiMessage *)GetMsg(cw->UserPort)) != 0) {
+            cls = msg->Class;
+            addr = msg->IAddress;
+            ReplyMsg((struct Message *)msg);
+            if (cls == IDCMP_CLOSEWINDOW) {
+                done = 1;
+            } else if (cls == IDCMP_REFRESHWINDOW) {
+                BeginRefresh(cw);
+                draw_connect_dialog(cw);
+                EndRefresh(cw, TRUE);
+            } else if (cls == IDCMP_GADGETUP) {
+                if (((struct Gadget *)addr)->GadgetID == CGID_CANCEL) {
+                    done = 1;
+                } else if (((struct Gadget *)addr)->GadgetID == CGID_CONNECT) {
+                    accepted = 1;
+                    done = 1;
+                }
+            }
+        }
+    }
+    CloseWindow(cw);
+    if (!accepted)
+        restore_connect_text(old_host, old_port);
+    redraw();
+    return accepted;
+}
+
 
 static void resize_terminal(void)
 {
@@ -885,26 +959,23 @@ static void resize_terminal(void)
     WORD width;
     WORD height;
 
-    left = 8;
-    top = TERMINAL_TOP_Y;
-    width = (WORD)(g_win->Width - 16);
-    height = (WORD)(g_win->Height - top - STATUS_H);
+    left = (WORD)(g_win->BorderLeft + TERMINAL_MARGIN);
+    top = (WORD)(g_win->BorderTop + TERMINAL_MARGIN);
+    width = (WORD)(g_win->Width - g_win->BorderLeft - g_win->BorderRight - (TERMINAL_MARGIN * 2));
+    height = (WORD)(g_win->Height - g_win->BorderTop - g_win->BorderBottom - (TERMINAL_MARGIN * 2));
     if (width < 160)
         width = 160;
     if (height < 40)
         height = 40;
     dct13_term_resize(&g_term, left, top, width, height);
-    dct13_term_status(&g_term, g_status);
 }
 
 static void redraw(void)
 {
     BeginRefresh(g_win);
-    draw_labels();
-    draw_separator();
     dct13_term_redraw(&g_term);
-    dct13_term_status(&g_term, g_status);
     EndRefresh(g_win, TRUE);
+    update_window_title();
 }
 
 static int open_libs(void)
@@ -928,8 +999,11 @@ static int open_window(void)
     g_win = OpenWindow(&g_new_window);
     if (!g_win)
         return 0;
-    if (!dct13_term_init(&g_term, g_win, 8, TERMINAL_TOP_Y, (WORD)(g_win->Width - 16),
-        (WORD)(g_win->Height - TERMINAL_TOP_Y - STATUS_H))) {
+    if (!dct13_term_init(&g_term, g_win,
+        (WORD)(g_win->BorderLeft + TERMINAL_MARGIN),
+        (WORD)(g_win->BorderTop + TERMINAL_MARGIN),
+        (WORD)(g_win->Width - g_win->BorderLeft - g_win->BorderRight - (TERMINAL_MARGIN * 2)),
+        (WORD)(g_win->Height - g_win->BorderTop - g_win->BorderBottom - (TERMINAL_MARGIN * 2)))) {
         CloseWindow(g_win);
         g_win = 0;
         return 0;
@@ -939,8 +1013,6 @@ static int open_window(void)
     dct13_term_set_mode(&g_term, g_cfg.terminal_mode);
     SetMenuStrip(g_win, &g_project_menu);
     dct13_term_clear(&g_term);
-    draw_labels();
-    draw_separator();
     copy_status("Ready");
     return 1;
 }
@@ -1068,19 +1140,6 @@ static void poll_net(void)
 static void clear_terminal_view(void)
 {
     dct13_term_clear(&g_term);
-    draw_separator();
-}
-
-static void handle_gadget(struct Gadget *gad)
-{
-    if (!gad)
-        return;
-    if (gad->GadgetID == GID_CONNECT)
-        connect_now();
-    else if (gad->GadgetID == GID_DISCONNECT)
-        disconnect();
-    else if (gad->GadgetID == GID_CLEAR)
-        clear_terminal_view();
 }
 
 static void xfer_status_callback(const char *text, void *user)
@@ -1118,8 +1177,10 @@ static void handle_menu(UWORD code)
         menu = MENUNUM(code);
         item_no = ITEMNUM(code);
         if (menu == 0) {
-            if (item_no == 0)
-                connect_now();
+            if (item_no == 0) {
+                if (open_connect_dialog())
+                    connect_now();
+            }
             else if (item_no == 1)
                 disconnect();
             else if (item_no == 2)
@@ -1145,12 +1206,10 @@ static void handle_window_messages(void)
     struct IntuiMessage *msg;
     ULONG cls;
     UWORD code;
-    APTR addr;
 
     while ((msg = (struct IntuiMessage *)GetMsg(g_win->UserPort)) != 0) {
         cls = msg->Class;
         code = msg->Code;
-        addr = msg->IAddress;
         ReplyMsg((struct Message *)msg);
         if (cls == IDCMP_CLOSEWINDOW) {
             g_running = 0;
@@ -1158,10 +1217,6 @@ static void handle_window_messages(void)
             redraw();
         } else if (cls == IDCMP_NEWSIZE) {
             resize_terminal();
-            draw_labels();
-            draw_separator();
-        } else if (cls == IDCMP_GADGETUP) {
-            handle_gadget((struct Gadget *)addr);
         } else if (cls == IDCMP_MENUPICK) {
             handle_menu(code);
         } else if (cls == IDCMP_VANILLAKEY) {

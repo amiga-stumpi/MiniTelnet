@@ -19,25 +19,38 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.15 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.16 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
 
 #define TERMINAL_MARGIN 2
-#define CONN_HOST_X 58
-#define CONN_HOST_Y 24
-#define CONN_HOST_W 230
-#define CONN_PORT_X 58
-#define CONN_PORT_Y 46
+#define CONN_LIST_X 12
+#define CONN_LIST_Y 26
+#define CONN_LIST_W 170
+#define CONN_LIST_H 70
+#define CONN_VISIBLE 7
+#define CONN_ROW_H 10
+#define CONN_HOST_X 236
+#define CONN_HOST_Y 30
+#define CONN_HOST_W 170
+#define CONN_PORT_X 236
+#define CONN_PORT_Y 54
 #define CONN_PORT_W 60
 #define CONN_STRING_H 12
-#define CONN_BUTTON_Y 74
+#define CONN_BUTTON_Y 118
+#define ADDR_BOOK_FILE "minitelnet.addr"
+#define ADDR_BOOK_MAX 32
+#define ADDR_NAME_SIZE 32
 
 #define CGID_HOST 1
 #define CGID_PORT 2
 #define CGID_CONNECT 3
 #define CGID_CANCEL 4
+#define CGID_SAVE 5
+#define CGID_DELETE 6
+#define CGID_UP 7
+#define CGID_DOWN 8
 #define IGID_OK 201
 #define FGID_OK 102
 #define FGID_CANCEL 103
@@ -71,6 +84,7 @@ static char g_host_undo[DCT13_HOST_SIZE];
 static char g_port_undo[DCT13_PORT_SIZE];
 static char g_status[96];
 static char g_title_status[160];
+static char g_addr_io_buf[512];
 static char g_font_names[FONT_MAX][FONT_NAME_MAX];
 static UWORD g_font_count;
 static UWORD g_font_selected;
@@ -78,6 +92,15 @@ static UWORD g_font_top;
 static UWORD g_font_sizes[FONT_SIZE_MAX];
 static UWORD g_font_size_count;
 static UWORD g_font_size_selected;
+struct AddrBookEntry {
+    char name[ADDR_NAME_SIZE];
+    char host[DCT13_HOST_SIZE];
+    char port[DCT13_PORT_SIZE];
+};
+static struct AddrBookEntry g_addr_book[ADDR_BOOK_MAX];
+static UWORD g_addr_count;
+static UWORD g_addr_selected;
+static UWORD g_addr_top;
 static int g_running;
 
 static void resize_terminal(void);
@@ -94,18 +117,38 @@ static struct StringInfo g_port_si = {
 };
 
 static struct IntuiText g_connect_ok_text = { 0, 1, JAM2, 7, 1, 0, (UBYTE *)"Connect", 0 };
+static struct IntuiText g_connect_save_text = { 0, 1, JAM2, 12, 1, 0, (UBYTE *)"Save", 0 };
+static struct IntuiText g_connect_delete_text = { 0, 1, JAM2, 7, 1, 0, (UBYTE *)"Delete", 0 };
+static struct IntuiText g_connect_up_text = { 0, 1, JAM2, 5, 1, 0, (UBYTE *)"Up", 0 };
+static struct IntuiText g_connect_down_text = { 0, 1, JAM2, 3, 1, 0, (UBYTE *)"Down", 0 };
 static struct IntuiText g_connect_cancel_text = { 0, 1, JAM2, 8, 1, 0, (UBYTE *)"Cancel", 0 };
 
 static struct Gadget g_connect_cancel_gad = {
-    0, 210, CONN_BUTTON_Y, 62, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    0, 344, CONN_BUTTON_Y, 62, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
     GTYP_BOOLGADGET, 0, 0, &g_connect_cancel_text, 0, 0, CGID_CANCEL, 0
 };
+static struct Gadget g_connect_delete_gad = {
+    &g_connect_cancel_gad, 270, CONN_BUTTON_Y, 62, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_delete_text, 0, 0, CGID_DELETE, 0
+};
+static struct Gadget g_connect_save_gad = {
+    &g_connect_delete_gad, 208, CONN_BUTTON_Y, 52, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_save_text, 0, 0, CGID_SAVE, 0
+};
 static struct Gadget g_connect_ok_gad = {
-    &g_connect_cancel_gad, 130, CONN_BUTTON_Y, 70, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    &g_connect_save_gad, 126, CONN_BUTTON_Y, 70, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
     GTYP_BOOLGADGET, 0, 0, &g_connect_ok_text, 0, 0, CGID_CONNECT, 0
 };
+static struct Gadget g_connect_down_gad = {
+    &g_connect_ok_gad, 68, CONN_BUTTON_Y, 46, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_down_text, 0, 0, CGID_DOWN, 0
+};
+static struct Gadget g_connect_up_gad = {
+    &g_connect_down_gad, 12, CONN_BUTTON_Y, 46, 14, GFLG_GADGHCOMP, GACT_RELVERIFY,
+    GTYP_BOOLGADGET, 0, 0, &g_connect_up_text, 0, 0, CGID_UP, 0
+};
 static struct Gadget g_conn_port_gad = {
-    &g_connect_ok_gad, CONN_PORT_X, CONN_PORT_Y, CONN_PORT_W, CONN_STRING_H,
+    &g_connect_up_gad, CONN_PORT_X, CONN_PORT_Y, CONN_PORT_W, CONN_STRING_H,
     GFLG_GADGHCOMP, GACT_RELVERIFY | GACT_STRINGLEFT,
     GTYP_STRGADGET, 0, 0, 0, 0, (APTR)&g_port_si, CGID_PORT, 0
 };
@@ -781,7 +824,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.15", text_len("Version: v0.15"));
+    Text(win->RPort, (STRPTR)"Version: v0.16", text_len("Version: v0.16"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -853,6 +896,256 @@ static void open_info_dialog(void)
     redraw();
 }
 
+
+static void addr_book_clear(void)
+{
+    g_addr_count = 0;
+    g_addr_selected = 0;
+    g_addr_top = 0;
+}
+
+static void addr_book_copy_name(char *dst, const char *src)
+{
+    UWORD i;
+
+    i = 0;
+    while (src && src[i] && ((ULONG)i + 1UL) < ADDR_NAME_SIZE) {
+        dst[i] = src[i];
+        ++i;
+    }
+    dst[i] = 0;
+}
+
+static void addr_book_add(const char *name, const char *host, const char *port)
+{
+    UWORD idx;
+
+    if (!host || !host[0] || g_addr_count >= ADDR_BOOK_MAX)
+        return;
+    idx = g_addr_count++;
+    if (name && name[0])
+        addr_book_copy_name(g_addr_book[idx].name, name);
+    else
+        addr_book_copy_name(g_addr_book[idx].name, host);
+    copy_cfg_text(g_addr_book[idx].host, DCT13_HOST_SIZE, host);
+    if (port && port[0])
+        copy_cfg_text(g_addr_book[idx].port, DCT13_PORT_SIZE, port);
+    else
+        copy_cfg_text(g_addr_book[idx].port, DCT13_PORT_SIZE, "23");
+}
+
+static void addr_book_parse_line(char *line)
+{
+    char *name;
+    char *host;
+    char *port;
+    UWORD i;
+    UWORD parsed_port;
+
+    if (!line || !line[0] || line[0] == '#')
+        return;
+    name = line;
+    host = 0;
+    port = 0;
+    for (i = 0; line[i]; ++i) {
+        if (line[i] == '|') {
+            line[i] = 0;
+            host = &line[i + 1];
+            break;
+        }
+    }
+    if (!host || !host[0])
+        return;
+    for (i = 0; host[i]; ++i) {
+        if (host[i] == '|') {
+            host[i] = 0;
+            port = &host[i + 1];
+            break;
+        }
+    }
+    if (!port || !port[0])
+        port = "23";
+    if (!dct13_parse_port(port, &parsed_port))
+        return;
+    addr_book_add(name, host, port);
+}
+
+static void addr_book_load(void)
+{
+    BPTR fh;
+    LONG got;
+    UWORD i;
+    UWORD line_pos;
+    char ch;
+    static char line[160];
+
+    addr_book_clear();
+    fh = Open((STRPTR)ADDR_BOOK_FILE, MODE_OLDFILE);
+    if (!fh)
+        return;
+    line_pos = 0;
+    while ((got = Read(fh, g_addr_io_buf, sizeof(g_addr_io_buf))) > 0) {
+        for (i = 0; i < (UWORD)got; ++i) {
+            ch = g_addr_io_buf[i];
+            if (ch == '\r' || ch == '\n') {
+                if (line_pos) {
+                    line[line_pos] = 0;
+                    addr_book_parse_line(line);
+                    line_pos = 0;
+                }
+            } else if (((ULONG)line_pos + 1UL) < sizeof(line)) {
+                line[line_pos++] = ch;
+            }
+        }
+    }
+    if (line_pos) {
+        line[line_pos] = 0;
+        addr_book_parse_line(line);
+    }
+    Close(fh);
+}
+
+static int addr_book_write_text(BPTR fh, const char *text)
+{
+    UWORD len;
+
+    len = text_len(text);
+    if (len == 0)
+        return 1;
+    return Write(fh, (APTR)text, len) == len;
+}
+
+static int addr_book_save(void)
+{
+    BPTR fh;
+    UWORD i;
+
+    fh = Open((STRPTR)ADDR_BOOK_FILE, MODE_NEWFILE);
+    if (!fh)
+        return 0;
+    if (!addr_book_write_text(fh, "# MiniTelnet address book\n")) {
+        Close(fh);
+        return 0;
+    }
+    for (i = 0; i < g_addr_count; ++i) {
+        if (!addr_book_write_text(fh, g_addr_book[i].name) ||
+            !addr_book_write_text(fh, "|") ||
+            !addr_book_write_text(fh, g_addr_book[i].host) ||
+            !addr_book_write_text(fh, "|") ||
+            !addr_book_write_text(fh, g_addr_book[i].port) ||
+            !addr_book_write_text(fh, "\n")) {
+            Close(fh);
+            return 0;
+        }
+    }
+    Close(fh);
+    return 1;
+}
+
+static void addr_book_select(struct Window *win, UWORD idx)
+{
+    if (idx >= g_addr_count)
+        return;
+    g_addr_selected = idx;
+    copy_cfg_text(g_cfg.host, DCT13_HOST_SIZE, g_addr_book[idx].host);
+    copy_cfg_text(g_cfg.port_text, DCT13_PORT_SIZE, g_addr_book[idx].port);
+    if (win)
+        RefreshGList(&g_conn_host_gad, win, 0, 2);
+}
+
+static void addr_book_save_current(void)
+{
+    UWORD port;
+    UWORD idx;
+
+    if (!g_cfg.host[0]) {
+        copy_status("Enter host");
+        return;
+    }
+    if (!dct13_parse_port(g_cfg.port_text, &port)) {
+        copy_status("Invalid port");
+        return;
+    }
+    idx = g_addr_count;
+    if (g_addr_selected < g_addr_count &&
+        same_text(g_addr_book[g_addr_selected].host, g_cfg.host))
+        idx = g_addr_selected;
+    if (idx >= g_addr_count) {
+        if (g_addr_count >= ADDR_BOOK_MAX) {
+            copy_status("Address book full");
+            return;
+        }
+        idx = g_addr_count++;
+        g_addr_selected = idx;
+    }
+    addr_book_copy_name(g_addr_book[idx].name, g_cfg.host);
+    copy_cfg_text(g_addr_book[idx].host, DCT13_HOST_SIZE, g_cfg.host);
+    copy_cfg_text(g_addr_book[idx].port, DCT13_PORT_SIZE, g_cfg.port_text[0] ? g_cfg.port_text : "23");
+    if (idx < g_addr_top)
+        g_addr_top = idx;
+    if ((ULONG)idx >= (ULONG)g_addr_top + CONN_VISIBLE)
+        g_addr_top = (UWORD)(idx - CONN_VISIBLE + 1);
+    if (addr_book_save())
+        copy_status("Address saved");
+    else
+        copy_status("Could not save address");
+}
+
+static void addr_book_delete_selected(void)
+{
+    UWORD i;
+
+    if (g_addr_count == 0 || g_addr_selected >= g_addr_count)
+        return;
+    for (i = g_addr_selected; (ULONG)i + 1UL < g_addr_count; ++i)
+        g_addr_book[i] = g_addr_book[i + 1];
+    --g_addr_count;
+    if (g_addr_selected >= g_addr_count && g_addr_selected > 0)
+        --g_addr_selected;
+    if (g_addr_top >= g_addr_count && g_addr_top > 0)
+        --g_addr_top;
+    if (addr_book_save())
+        copy_status("Address deleted");
+    else
+        copy_status("Could not save address");
+}
+
+static void draw_addr_book_list(struct Window *win)
+{
+    UWORD row;
+    UWORD idx;
+    UWORD i;
+    UWORD j;
+    WORD y;
+    char line[96];
+
+    draw_box(win, CONN_LIST_X, CONN_LIST_Y, CONN_LIST_W, CONN_LIST_H);
+    for (row = 0; row < CONN_VISIBLE; ++row) {
+        idx = (UWORD)(g_addr_top + row);
+        if (idx >= g_addr_count)
+            break;
+        line[0] = (idx == g_addr_selected) ? '>' : ' ';
+        line[1] = ' ';
+        i = 2;
+        for (j = 0; g_addr_book[idx].name[j] && ((ULONG)i + 1UL) < sizeof(line); ++j)
+            line[i++] = g_addr_book[idx].name[j];
+        if (((ULONG)i + 2UL) < sizeof(line)) {
+            line[i++] = ':';
+            line[i++] = ' ';
+        }
+        for (j = 0; g_addr_book[idx].port[j] && ((ULONG)i + 1UL) < sizeof(line); ++j)
+            line[i++] = g_addr_book[idx].port[j];
+        line[i] = 0;
+        y = (WORD)(CONN_LIST_Y + 10 + row * CONN_ROW_H);
+        Move(win->RPort, (WORD)(CONN_LIST_X + 3), y);
+        Text(win->RPort, (STRPTR)line, i);
+    }
+    if (g_addr_count == 0) {
+        Move(win->RPort, (WORD)(CONN_LIST_X + 3), (WORD)(CONN_LIST_Y + 18));
+        Text(win->RPort, (STRPTR)"No entries", 10);
+    }
+}
+
 static void draw_connect_dialog(struct Window *win)
 {
     if (!win)
@@ -863,14 +1156,22 @@ static void draw_connect_dialog(struct Window *win)
     SetAPen(win->RPort, 1);
     RectFill(win->RPort, 0, 10, (WORD)(win->Width - 1), (WORD)(win->Height - 1));
     SetAPen(win->RPort, 0);
-    Move(win->RPort, 14, 34);
+    Move(win->RPort, CONN_LIST_X, 20);
+    Text(win->RPort, (STRPTR)"Address book", 12);
+    draw_addr_book_list(win);
+    Move(win->RPort, 196, 40);
     Text(win->RPort, (STRPTR)"Host", 4);
-    Move(win->RPort, 14, 56);
+    Move(win->RPort, 196, 64);
     Text(win->RPort, (STRPTR)"Port", 4);
     draw_box(win, CONN_HOST_X, CONN_HOST_Y, CONN_HOST_W, CONN_STRING_H);
     draw_box(win, CONN_PORT_X, CONN_PORT_Y, CONN_PORT_W, CONN_STRING_H);
+    draw_button_box(win, &g_connect_up_gad, "Up", 5);
+    draw_button_box(win, &g_connect_down_gad, "Down", 3);
     draw_button_box(win, &g_connect_ok_gad, "Connect", 7);
+    draw_button_box(win, &g_connect_save_gad, "Save", 12);
+    draw_button_box(win, &g_connect_delete_gad, "Delete", 7);
     draw_button_box(win, &g_connect_cancel_gad, "Cancel", 8);
+    RefreshGList(&g_conn_host_gad, win, 0, 2);
 }
 
 static void restore_connect_text(const char *old_host, const char *old_port)
@@ -885,7 +1186,11 @@ static int open_connect_dialog(void)
     struct NewWindow nw;
     struct IntuiMessage *msg;
     ULONG cls;
+    UWORD code;
     APTR addr;
+    WORD mx;
+    WORD my;
+    UWORD row;
     int done;
     int accepted;
     char old_host[DCT13_HOST_SIZE];
@@ -894,13 +1199,14 @@ static int open_connect_dialog(void)
     copy_cfg_text(old_host, DCT13_HOST_SIZE, g_cfg.host);
     copy_cfg_text(old_port, DCT13_PORT_SIZE, g_cfg.port_text);
     dct13_term_restore_gui_rp(&g_term);
-    nw.LeftEdge = 80;
-    nw.TopEdge = 40;
-    nw.Width = 306;
-    nw.Height = 104;
+    addr_book_load();
+    nw.LeftEdge = 70;
+    nw.TopEdge = 35;
+    nw.Width = 424;
+    nw.Height = 152;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP;
+    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS;
     nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET |
         WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = &g_conn_host_gad;
@@ -908,10 +1214,10 @@ static int open_connect_dialog(void)
     nw.Title = (STRPTR)"Connect";
     nw.Screen = 0;
     nw.BitMap = 0;
-    nw.MinWidth = 306;
-    nw.MinHeight = 104;
-    nw.MaxWidth = 306;
-    nw.MaxHeight = 104;
+    nw.MinWidth = 424;
+    nw.MinHeight = 152;
+    nw.MaxWidth = 424;
+    nw.MaxHeight = 152;
     nw.Type = WBENCHSCREEN;
     cw = OpenWindow(&nw);
     if (!cw) {
@@ -926,7 +1232,10 @@ static int open_connect_dialog(void)
         WaitPort(cw->UserPort);
         while ((msg = (struct IntuiMessage *)GetMsg(cw->UserPort)) != 0) {
             cls = msg->Class;
+            code = msg->Code;
             addr = msg->IAddress;
+            mx = msg->MouseX;
+            my = msg->MouseY;
             ReplyMsg((struct Message *)msg);
             if (cls == IDCMP_CLOSEWINDOW) {
                 done = 1;
@@ -934,12 +1243,35 @@ static int open_connect_dialog(void)
                 BeginRefresh(cw);
                 draw_connect_dialog(cw);
                 EndRefresh(cw, TRUE);
+            } else if (cls == IDCMP_MOUSEBUTTONS && code == SELECTDOWN) {
+                if (mx >= CONN_LIST_X && mx < (CONN_LIST_X + CONN_LIST_W) &&
+                    my >= CONN_LIST_Y && my < (CONN_LIST_Y + CONN_LIST_H)) {
+                    row = (UWORD)((my - CONN_LIST_Y) / CONN_ROW_H);
+                    if ((ULONG)g_addr_top + row < g_addr_count) {
+                        addr_book_select(cw, (UWORD)(g_addr_top + row));
+                        draw_connect_dialog(cw);
+                    }
+                }
             } else if (cls == IDCMP_GADGETUP) {
                 if (((struct Gadget *)addr)->GadgetID == CGID_CANCEL) {
                     done = 1;
                 } else if (((struct Gadget *)addr)->GadgetID == CGID_CONNECT) {
                     accepted = 1;
                     done = 1;
+                } else if (((struct Gadget *)addr)->GadgetID == CGID_SAVE) {
+                    addr_book_save_current();
+                    draw_connect_dialog(cw);
+                } else if (((struct Gadget *)addr)->GadgetID == CGID_DELETE) {
+                    addr_book_delete_selected();
+                    draw_connect_dialog(cw);
+                } else if (((struct Gadget *)addr)->GadgetID == CGID_UP) {
+                    if (g_addr_top > 0)
+                        --g_addr_top;
+                    draw_connect_dialog(cw);
+                } else if (((struct Gadget *)addr)->GadgetID == CGID_DOWN) {
+                    if ((ULONG)g_addr_top + CONN_VISIBLE < g_addr_count)
+                        ++g_addr_top;
+                    draw_connect_dialog(cw);
                 }
             }
         }

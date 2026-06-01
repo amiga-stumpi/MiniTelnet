@@ -37,6 +37,8 @@ struct Dct13Terminal {
     UWORD rows;
     UWORD cursor_col;
     UWORD cursor_row;
+    UWORD saved_col;
+    UWORD saved_row;
     UBYTE attr;
     UBYTE mode;
     UBYTE defer_draw;
@@ -70,6 +72,8 @@ void dct13_term_bs(struct Dct13Terminal *term);
 void dct13_term_tab(struct Dct13Terminal *term);
 void dct13_term_move_cursor(struct Dct13Terminal *term, WORD row, WORD col);
 void dct13_term_move_relative(struct Dct13Terminal *term, WORD drow, WORD dcol);
+void dct13_term_save_cursor(struct Dct13Terminal *term);
+void dct13_term_restore_cursor(struct Dct13Terminal *term);
 void dct13_term_clear_screen(struct Dct13Terminal *term, UWORD mode);
 void dct13_term_clear_line(struct Dct13Terminal *term, UWORD mode);
 void dct13_term_set_attr(struct Dct13Terminal *term, UWORD code);

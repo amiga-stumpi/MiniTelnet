@@ -536,6 +536,8 @@ int dct13_term_init(struct Dct13Terminal *term, struct Window *win,
     term->rows = 0;
     term->cursor_col = 0;
     term->cursor_row = 0;
+    term->saved_col = 0;
+    term->saved_row = 0;
     term->attr = DEFAULT_ATTR;
     term->mode = DCT13_TERM_MODE_ANSI_IBM;
     term->defer_draw = 0;
@@ -617,6 +619,8 @@ void dct13_term_clear(struct Dct13Terminal *term)
     }
     term->cursor_col = 0;
     term->cursor_row = 0;
+    term->saved_col = 0;
+    term->saved_row = 0;
     dct13_ansi_init(&term->ansi);
     if (term->defer_draw)
         mark_dirty_all(term);
@@ -783,6 +787,22 @@ void dct13_term_move_relative(struct Dct13Terminal *term, WORD drow, WORD dcol)
     row = (WORD)(row + drow);
     col = (WORD)(col + dcol);
     dct13_term_move_cursor(term, row, col);
+}
+
+
+void dct13_term_save_cursor(struct Dct13Terminal *term)
+{
+    if (!term)
+        return;
+    term->saved_col = term->cursor_col;
+    term->saved_row = term->cursor_row;
+}
+
+void dct13_term_restore_cursor(struct Dct13Terminal *term)
+{
+    if (!term)
+        return;
+    dct13_term_move_cursor(term, (WORD)term->saved_row, (WORD)term->saved_col);
 }
 
 void dct13_term_clear_screen(struct Dct13Terminal *term, UWORD mode)

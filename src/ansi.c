@@ -72,6 +72,24 @@ static void ansi_csi_dispatch(struct Dct13Ansi *ansi, struct Dct13Terminal *term
         n = ansi_param(ansi, 0, 1);
         dct13_term_move_relative(term, 0, (WORD)(0 - (WORD)n));
         break;
+    case 'E':
+        n = ansi_param(ansi, 0, 1);
+        dct13_term_move_relative(term, (WORD)n, 0);
+        dct13_term_cr(term);
+        break;
+    case 'F':
+        n = ansi_param(ansi, 0, 1);
+        dct13_term_move_relative(term, (WORD)(0 - (WORD)n), 0);
+        dct13_term_cr(term);
+        break;
+    case 'G':
+        col = ansi_param(ansi, 0, 1);
+        dct13_term_move_cursor(term, (WORD)term->cursor_row, (WORD)(col - 1));
+        break;
+    case 'd':
+        row = ansi_param(ansi, 0, 1);
+        dct13_term_move_cursor(term, (WORD)(row - 1), (WORD)term->cursor_col);
+        break;
     case 'H':
     case 'f':
         row = ansi_param(ansi, 0, 1);
@@ -89,8 +107,10 @@ static void ansi_csi_dispatch(struct Dct13Ansi *ansi, struct Dct13Terminal *term
         /* Private/common mode set/reset is accepted but ignored. */
         break;
     case 's':
+        dct13_term_save_cursor(term);
+        break;
     case 'u':
-        /* Save/restore cursor are future work. */
+        dct13_term_restore_cursor(term);
         break;
     case 'm':
         if (ansi->param_count == 0) {
@@ -162,8 +182,10 @@ void dct13_ansi_feed(struct Dct13Ansi *ansi, struct Dct13Terminal *term,
                 dct13_term_lf(term);
             } else if (ch == 'M') {
                 /* Reverse index is ignored in v0.2. */
-            } else if (ch == '7' || ch == '8') {
-                /* Save/restore cursor are future work. */
+            } else if (ch == '7') {
+                dct13_term_save_cursor(term);
+            } else if (ch == '8') {
+                dct13_term_restore_cursor(term);
             } else {
                 ansi_debug_s("MiniTelnet ANSI unknown ESC\n");
             }

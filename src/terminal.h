@@ -29,6 +29,7 @@ struct Dct13Terminal {
     struct TextFont *gui_font;
     struct TextFont *terminal_font;
     UBYTE terminal_font_opened;
+    UBYTE direct_cp437;
     char font_name[64];
     UWORD font_size;
     UWORD cols;

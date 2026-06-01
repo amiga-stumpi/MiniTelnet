@@ -18,9 +18,8 @@
 #include "telnet.h"
 #include "terminal.h"
 #include "xfer_xpr.h"
-#include "xfer_xem.h"
 
-#define TITLE "MiniTelnet v0.12 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.13 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -134,7 +133,6 @@ static struct IntuiText g_menu_zdownload_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)
 static struct IntuiText g_menu_info_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Info", 0 };
 static struct IntuiText g_menu_quit_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Quit", 0 };
 static struct IntuiText g_menu_font_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Terminal Font...", 0 };
-static struct IntuiText g_menu_xem_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"XEM IBM Terminal", 0 };
 static struct IntuiText g_menu_save_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Save Settings", 0 };
 
 static struct MenuItem g_project_quit_item = {
@@ -161,12 +159,8 @@ static struct MenuItem g_project_connect_item = {
     &g_project_hangup_item, 0, 0, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_connect_text, 0, 0, 0, MENUNULL
 };
-static struct MenuItem g_settings_xem_item = {
-    0, 0, 20, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
-    (APTR)&g_menu_xem_text, 0, 0, 0, MENUNULL
-};
 static struct MenuItem g_settings_save_item = {
-    &g_settings_xem_item, 0, 10, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    0, 0, 10, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_save_text, 0, 0, 0, MENUNULL
 };
 static struct MenuItem g_settings_font_item = {
@@ -792,7 +786,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.12", text_len("Version: v0.12"));
+    Text(win->RPort, (STRPTR)"Version: v0.13", text_len("Version: v0.13"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1058,12 +1052,8 @@ static void poll_net(void)
             reply_len = (UWORD)(packed >> 8);
             if (reply_len)
                 dct13_net_send(&g_net, g_iac_reply, reply_len);
-            if (out_len) {
-                if (dct13_xem_active())
-                    dct13_xem_write(g_term_buf, out_len);
-                else
-                    dct13_term_write(&g_term, g_term_buf, out_len);
-            }
+            if (out_len)
+                dct13_term_write(&g_term, g_term_buf, out_len);
             continue;
         }
         if (r == DCT13_NET_CLOSED) {
@@ -1077,10 +1067,7 @@ static void poll_net(void)
 
 static void clear_terminal_view(void)
 {
-    if (dct13_xem_active())
-        dct13_xem_clear();
-    else
-        dct13_term_clear(&g_term);
+    dct13_term_clear(&g_term);
     draw_separator();
 }
 
@@ -1100,35 +1087,6 @@ static void xfer_status_callback(const char *text, void *user)
 {
     (void)user;
     copy_status(text);
-}
-
-static void toggle_xem_ibm(void)
-{
-    int rc;
-
-    if (dct13_xem_active()) {
-        dct13_xem_close();
-        redraw();
-        copy_status("XEM disabled");
-        return;
-    }
-    rc = dct13_xem_open(g_win, g_term.terminal_font, &g_net, "xemibm.library");
-    if (rc == DCT13_XEM_OK) {
-        copy_status("XEM IBM enabled");
-        dct13_xem_clear();
-    } else if (rc == DCT13_XEM_NO_KEYMAP) {
-        copy_status("keymap.library missing");
-    } else if (rc == DCT13_XEM_NO_DISKFONT) {
-        copy_status("diskfont.library missing");
-    } else if (rc == DCT13_XEM_NO_LIBRARY) {
-        copy_status("xemibm.library open failed");
-    } else if (rc == DCT13_XEM_SETUP_FAILED) {
-        copy_status("XEM setup failed: check ibm.font/8");
-    } else if (rc == DCT13_XEM_OPEN_CONSOLE_FAILED) {
-        copy_status("XEM console open failed");
-    } else {
-        copy_status("XEM setup failed");
-    }
 }
 
 static void start_zmodem_download(void)
@@ -1177,8 +1135,6 @@ static void handle_menu(UWORD code)
                 open_font_selector();
             else if (item_no == 1)
                 save_settings();
-            else if (item_no == 2)
-                toggle_xem_ibm();
         }
         code = item ? item->NextSelect : MENUNULL;
     }
@@ -1238,7 +1194,6 @@ int dct13_gui_run(void)
     }
 
     disconnect();
-    dct13_xem_close();
     dct13_net_cleanup(&g_net);
     close_window();
     close_libs();

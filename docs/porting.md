@@ -12,25 +12,24 @@ The upstream source and documentation still target Kickstart/Workbench 2.00+ (`V
 - `NewObject` and generated GUI support in `guis.c`.
 - Public screen and iconify/AppIcon behavior referenced by docs and headers.
 - ReqTools and bundled third-party trees aimed at later OS/library versions in some cases.
-- XPR and XEM integration: upstream uses V36-era UI around the libraries, so MiniTelnet provides its own OS1.3 callbacks instead of compiling upstream code directly.
+- XPR integration: upstream uses V36-era UI around the libraries, so MiniTelnet provides its own OS1.3 callbacks instead of compiling upstream code directly.
 
 ## MiniTelnet Approach
 
 The MiniTelnet code does not compile upstream DCTelnet directly. It creates a new OS1.3-safe client in `src/` and keeps upstream as reference.
 
-Current v0.12 choices:
+Current v0.13 choices:
 
 - Plain Intuition `OpenWindow`, `NewWindow`, classic gadgets, and `IDCMP_VANILLAKEY`.
 - Direct `bsdsocket.library` calls through explicit library-vector wrappers.
 - Minimal Telnet IAC filtering: `DO` -> `WONT`, `WILL` -> `DONT`, `SB ... SE` skipped.
 - Simple raw terminal rendering into the window RastPort.
 - XPR ZModem download is implemented with MiniTelnet socket/file callbacks and `xprzmodem.library`.
-- Optional XEM IBM output can be toggled with `xemibm.library`; the internal ANSI_IBM renderer remains the default.
+- XEM IBM output was removed from the runtime path because the available XEM library requires `keymap.library`, which is not part of plain OS1.3.
 
 ## Deferred Work
 
 - ReqTools connect requester.
-- Full XEM terminal backend selection and preferences (`xemascii.library`, `xemibm.library`, `xemvt340.library`).
 - XPR ZModem upload through `xprzmodem.library`.
 - Address book and persistent preferences.
 - Workbench icon/tooltype integration.

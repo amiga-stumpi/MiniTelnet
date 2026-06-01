@@ -67,7 +67,7 @@ void dct13_config_defaults(struct Dct13Config *cfg)
 {
     copy_text(cfg->host, DCT13_HOST_SIZE, "telehack.com");
     copy_text(cfg->port_text, DCT13_PORT_SIZE, "23");
-    copy_text(cfg->font, DCT13_FONT_NAME_SIZE, "ruby.font");
+    copy_text(cfg->font, DCT13_FONT_NAME_SIZE, "ibm.font");
     cfg->port = 23;
     cfg->font_size = 8;
     cfg->terminal_mode = 2;

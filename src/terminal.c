@@ -16,7 +16,7 @@
 #define DEFAULT_ATTR 0
 
 #ifndef DCTELNET13_TERM_FONT_NAME
-#define DCTELNET13_TERM_FONT_NAME "ruby.font"
+#define DCTELNET13_TERM_FONT_NAME "ibm.font"
 #endif
 #ifndef DCTELNET13_TERM_FONT_SIZE
 #define DCTELNET13_TERM_FONT_SIZE 8
@@ -26,6 +26,34 @@ struct Library *DiskfontBase;
 
 static UBYTE g_space[128];
 static UBYTE g_row_text[256];
+
+
+static int text_equal_nocase(const char *a, const char *b)
+{
+    char ca;
+    char cb;
+
+    if (!a || !b)
+        return 0;
+    while (*a && *b) {
+        ca = *a++;
+        cb = *b++;
+        if (ca >= 'A' && ca <= 'Z')
+            ca = (char)(ca + ('a' - 'A'));
+        if (cb >= 'A' && cb <= 'Z')
+            cb = (char)(cb + ('a' - 'A'));
+        if (ca != cb)
+            return 0;
+    }
+    return *a == 0 && *b == 0;
+}
+
+static void update_cp437_font_mode(struct Dct13Terminal *term)
+{
+    if (!term)
+        return;
+    term->direct_cp437 = text_equal_nocase(term->font_name, "ibm.font");
+}
 
 static UWORD text_len(const char *s)
 {
@@ -192,15 +220,28 @@ static void install_font_or_fallback(struct Dct13Terminal *term, const char *nam
         term->terminal_font_opened = 1;
         copy_font_name(term->font_name, sizeof(term->font_name), name);
         term->font_size = size;
+        update_cp437_font_mode(term);
         return;
     }
 
-    if (name[0] != 't' || size != 11) {
+    if (!text_equal_nocase(name, "ruby.font") || size != 8) {
+        term->terminal_font = open_named_font("ruby.font", 8);
+        if (term->terminal_font) {
+            term->terminal_font_opened = 1;
+            copy_font_name(term->font_name, sizeof(term->font_name), "ruby.font");
+            term->font_size = 8;
+            update_cp437_font_mode(term);
+            return;
+        }
+    }
+
+    if (!text_equal_nocase(name, "topaz.font") || size != 11) {
         term->terminal_font = open_named_font("topaz.font", 11);
         if (term->terminal_font) {
             term->terminal_font_opened = 1;
             copy_font_name(term->font_name, sizeof(term->font_name), "topaz.font");
             term->font_size = 11;
+            update_cp437_font_mode(term);
             return;
         }
     }
@@ -209,6 +250,7 @@ static void install_font_or_fallback(struct Dct13Terminal *term, const char *nam
     term->terminal_font_opened = 0;
     copy_font_name(term->font_name, sizeof(term->font_name), "window font");
     term->font_size = 0;
+    update_cp437_font_mode(term);
 }
 
 static void open_terminal_font(struct Dct13Terminal *term)
@@ -258,6 +300,7 @@ int dct13_term_apply_font(struct Dct13Terminal *term, const char *font_name, UWO
     term->terminal_font_opened = 1;
     copy_font_name(term->font_name, sizeof(term->font_name), font_name);
     term->font_size = font_size;
+    update_cp437_font_mode(term);
     update_font_metrics(term);
 
     if (old_opened && old_font)
@@ -554,7 +597,7 @@ void dct13_term_put_char(struct Dct13Terminal *term, UBYTE ch)
 
     if (!term || !term->cells || term->cols == 0 || term->rows == 0)
         return;
-    if (term->mode == DCT13_TERM_MODE_ANSI_IBM)
+    if (term->mode == DCT13_TERM_MODE_ANSI_IBM && !term->direct_cp437)
         ch = dct13_cp437_to_amiga(ch);
     clamp_cursor(term);
     cell = &term->cells[(ULONG)term->cursor_row * term->cols + term->cursor_col];

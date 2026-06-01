@@ -13,7 +13,7 @@ DCTELNET13_ANSI_DEBUG ?= 0
 DCTELNET13_TERM_DEBUG ?= 0
 DCTELNET13_RENDER_DEBUG ?= 0
 DCTELNET13_NET_DEBUG ?= 0
-DCTELNET13_TERM_FONT_NAME ?= ruby.font
+DCTELNET13_TERM_FONT_NAME ?= ibm.font
 DCTELNET13_TERM_FONT_SIZE ?= 8
 
 CFLAGS += -DDCTELNET13_ANSI_DEBUG=$(DCTELNET13_ANSI_DEBUG)
@@ -32,7 +32,6 @@ SRCS = \
 	src/terminal.c \
 	src/gui_os13.c \
 	src/xfer_xpr.c \
-	src/xfer_xem.c \
 	src/config.c
 
 OBJS = $(SRCS:.c=.o)

@@ -6,7 +6,7 @@ classic Amiga systems.
 Version:
 
 ```text
-MiniTelnet v0.12 by Marcel Jaehne (c)2026
+MiniTelnet v0.13 by Marcel Jaehne (c)2026
 ```
 
 It was split out of TheWire13 and remains designed for AmigaOS 1.3, 68000, and
@@ -19,9 +19,8 @@ stack APIs.
 - Plain Intuition GUI, no GadTools/MUI/ReAction/ASL.
 - Host/port connect controls and `minitelnet.conf` load/save.
 - Telnet IAC filtering.
-- Internal ANSI/VT100 parser with approximate CP437/IBM BBS character mapping.
+- Internal ANSI/VT100 parser with CP437/IBM BBS character handling.
 - Runtime terminal font selection from `FONTS:`.
-- Optional `xemibm.library` backend from `Settings -> XEM IBM Terminal`.
 - XPR ZModem download via `Project -> ZModem Download` and
   `xprzmodem.library`.
 
@@ -31,7 +30,6 @@ stack APIs.
 - 68000-compatible build.
 - `bsdsocket.library` at runtime.
 - Optional: `xprzmodem.library` in `LIBS:` for ZModem download.
-- Optional: `xemibm.library` in `LIBS:` for the XEM IBM terminal backend. MiniTelnet opens it without a minimum version so older OS1.3-compatible XEM builds are accepted.
 - Toolchain: `/opt/amiga/bin/m68k-amigaos-gcc`.
 
 ## Build
@@ -73,7 +71,7 @@ Example:
 ```text
 host=cpbbs.de
 port=2323
-font=ruby.font
+font=ibm.font
 font_size=8
 terminal_mode=ANSI_IBM
 ```
@@ -82,7 +80,6 @@ terminal_mode=ANSI_IBM
 
 - XPR support is currently download-only.
 - XPR transfer is synchronous and blocks the UI while active.
-- XEM support is optional and experimental; the internal renderer remains the
-  default stable path.
+- XEM libraries are not used because the available XEM builds require `keymap.library`, which is not part of a plain OS1.3 setup.
 - No address book yet.
 - No ReqTools file/path requester yet.

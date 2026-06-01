@@ -17,7 +17,7 @@ MiniTelnet v0.12 by Marcel Jaehne (c)2026
 Planned later integrations:
 
 - `xprzmodem.library` in `LIBS:` for `Project -> ZModem Download`.
-- Optional `xemibm.library` in `LIBS:` for `Settings -> XEM IBM Terminal`.
+- Optional `xemibm.library` in `LIBS:` for `Settings -> XEM IBM Terminal`; MiniTelnet accepts older OS1.3-compatible XEM versions and does not require version 4.
 - `reqtools.library` for future requesters.
 
 ## Current v0.12 Scope
@@ -112,7 +112,7 @@ Limitations for v0.12:
 
 ## XEM Terminal Library
 
-`Settings -> XEM IBM Terminal` toggles an optional `xemibm.library` backend. When enabled, MiniTelnet initializes XEM on the current Intuition window and sends filtered Telnet payload bytes to `XEmulatorWrite()`. The internal ANSI_IBM renderer remains the default because it respects MiniTelnet's control-row layout and has been tested more heavily. If XEM drawing conflicts with the MiniTelnet controls on a given system, toggle the menu item again to return to the internal renderer.
+`Settings -> XEM IBM Terminal` toggles an optional `xemibm.library` backend. The library is opened with minimum version 0, because OS1.3-compatible XEM distributions may report versions below 4. When enabled, MiniTelnet initializes XEM on the current Intuition window and sends filtered Telnet payload bytes to `XEmulatorWrite()`. The internal ANSI_IBM renderer remains the default because it respects MiniTelnet's control-row layout and has been tested more heavily. If XEM drawing conflicts with the MiniTelnet controls on a given system, toggle the menu item again to return to the internal renderer.
 
 This is the first XEM integration pass. It does not yet expose XEM options, preferences, macro keys, or a separate XEM-only terminal window.
 

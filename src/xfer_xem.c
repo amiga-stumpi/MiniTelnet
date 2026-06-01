@@ -6,7 +6,7 @@
 
 #include "xfer_xem.h"
 
-#define XEM_LIBRARY_VERSION 4
+#define XEM_LIBRARY_VERSION 0
 
 struct xem_option;
 struct XEmulatorMacroKey;

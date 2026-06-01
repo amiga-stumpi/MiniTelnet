@@ -1117,7 +1117,7 @@ static void toggle_xem_ibm(void)
         copy_status("XEM IBM enabled");
         dct13_xem_clear();
     } else if (rc == DCT13_XEM_NO_LIBRARY) {
-        copy_status("xemibm.library missing");
+        copy_status("xemibm.library open failed");
     } else {
         copy_status("XEM setup failed");
     }

@@ -31,7 +31,7 @@ stack APIs.
 - 68000-compatible build.
 - `bsdsocket.library` at runtime.
 - Optional: `xprzmodem.library` in `LIBS:` for ZModem download.
-- Optional: `xemibm.library` in `LIBS:` for the XEM IBM terminal backend.
+- Optional: `xemibm.library` in `LIBS:` for the XEM IBM terminal backend. MiniTelnet opens it without a minimum version so older OS1.3-compatible XEM builds are accepted.
 - Toolchain: `/opt/amiga/bin/m68k-amigaos-gcc`.
 
 ## Build

@@ -1116,8 +1116,16 @@ static void toggle_xem_ibm(void)
     if (rc == DCT13_XEM_OK) {
         copy_status("XEM IBM enabled");
         dct13_xem_clear();
+    } else if (rc == DCT13_XEM_NO_KEYMAP) {
+        copy_status("keymap.library missing");
+    } else if (rc == DCT13_XEM_NO_DISKFONT) {
+        copy_status("diskfont.library missing");
     } else if (rc == DCT13_XEM_NO_LIBRARY) {
         copy_status("xemibm.library open failed");
+    } else if (rc == DCT13_XEM_SETUP_FAILED) {
+        copy_status("XEM setup failed: check ibm.font/8");
+    } else if (rc == DCT13_XEM_OPEN_CONSOLE_FAILED) {
+        copy_status("XEM console open failed");
     } else {
         copy_status("XEM setup failed");
     }

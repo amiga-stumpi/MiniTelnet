@@ -9,6 +9,10 @@
 #define DCT13_XEM_OK 0
 #define DCT13_XEM_ERROR -1
 #define DCT13_XEM_NO_LIBRARY -2
+#define DCT13_XEM_NO_KEYMAP -3
+#define DCT13_XEM_NO_DISKFONT -4
+#define DCT13_XEM_SETUP_FAILED -5
+#define DCT13_XEM_OPEN_CONSOLE_FAILED -6
 
 int dct13_xem_open(struct Window *win, struct TextFont *font, struct Dct13Net *net,
                    const char *library_name);

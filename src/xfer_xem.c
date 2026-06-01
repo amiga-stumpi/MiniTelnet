@@ -130,6 +130,33 @@ static void clear_xem_io(void)
         p[i] = 0;
 }
 
+static int check_xem_dependency(const char *name)
+{
+    struct Library *base;
+
+    base = OpenLibrary((STRPTR)name, 33);
+    if (!base)
+        return 0;
+    CloseLibrary(base);
+    return 1;
+}
+
+static UWORD window_screen_depth(struct Window *win)
+{
+    UWORD depth;
+
+    depth = 1;
+    if (win && win->WScreen)
+        depth = win->WScreen->BitMap.Depth;
+    else if (win && win->RPort && win->RPort->BitMap)
+        depth = win->RPort->BitMap->Depth;
+    if (depth < 1)
+        depth = 1;
+    if (depth > 4)
+        depth = 4;
+    return depth;
+}
+
 static int call_xem_setup(struct Library *base, struct XEM_IO *io)
 {
     register struct XEM_IO *a0 __asm("a0") = io;
@@ -208,6 +235,10 @@ int dct13_xem_open(struct Window *win, struct TextFont *font, struct Dct13Net *n
     if (!win || !library_name || !library_name[0])
         return DCT13_XEM_ERROR;
     dct13_xem_close();
+    if (!check_xem_dependency("keymap.library"))
+        return DCT13_XEM_NO_KEYMAP;
+    if (!check_xem_dependency("diskfont.library"))
+        return DCT13_XEM_NO_DISKFONT;
     g_xem_base = OpenLibrary((STRPTR)library_name, XEM_LIBRARY_VERSION);
     if (!g_xem_base)
         return DCT13_XEM_NO_LIBRARY;
@@ -217,6 +248,7 @@ int dct13_xem_open(struct Window *win, struct TextFont *font, struct Dct13Net *n
     g_xem_io.xem_window = win;
     g_xem_io.xem_font = font;
     g_xem_io.xem_signal = &g_xem_signal;
+    g_xem_io.xem_screendepth = window_screen_depth(win);
     g_xem_io.xem_sread = xem_sread_cb;
     g_xem_io.xem_swrite = xem_swrite_cb;
     g_xem_io.xem_sflush = xem_sflush_cb;
@@ -228,10 +260,13 @@ int dct13_xem_open(struct Window *win, struct TextFont *font, struct Dct13Net *n
     g_xem_io.xem_tgets = xem_tgets_cb;
     g_xem_io.xem_toptions = xem_toptions_cb;
     g_xem_io.xem_process_macrokeys = xem_macro_cb;
-    if (!call_xem_setup(g_xem_base, &g_xem_io) ||
-        !call_xem_open_console(g_xem_base, &g_xem_io)) {
+    if (!call_xem_setup(g_xem_base, &g_xem_io)) {
         dct13_xem_close();
-        return DCT13_XEM_ERROR;
+        return DCT13_XEM_SETUP_FAILED;
+    }
+    if (!call_xem_open_console(g_xem_base, &g_xem_io)) {
+        dct13_xem_close();
+        return DCT13_XEM_OPEN_CONSOLE_FAILED;
     }
     return DCT13_XEM_OK;
 }

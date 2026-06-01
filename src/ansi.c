@@ -104,7 +104,8 @@ static void ansi_csi_dispatch(struct Dct13Ansi *ansi, struct Dct13Terminal *term
         break;
     case 'h':
     case 'l':
-        /* Private/common mode set/reset is accepted but ignored. */
+        if (ansi->private_mode && ansi_param(ansi, 0, 0) == 7)
+            dct13_term_set_auto_wrap(term, final == 'h');
         break;
     case 's':
         dct13_term_save_cursor(term);

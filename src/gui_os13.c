@@ -19,12 +19,12 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.17 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.18 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
 
-#define TERMINAL_MARGIN 2
+#define TERMINAL_MARGIN 0
 #define CONN_LIST_X 12
 #define CONN_LIST_Y 26
 #define CONN_LIST_W 170
@@ -242,8 +242,7 @@ static struct NewWindow g_new_window = {
     0, 1,
     IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_NEWSIZE |
     IDCMP_VANILLAKEY | IDCMP_MENUPICK,
-    WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_SIZEGADGET |
-    WFLG_SIZEBRIGHT | WFLG_SIZEBBOTTOM | WFLG_ACTIVATE | WFLG_SMART_REFRESH,
+    WFLG_BORDERLESS | WFLG_ACTIVATE | WFLG_SMART_REFRESH,
     0,
     0,
     (STRPTR)TITLE,
@@ -824,7 +823,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.17", text_len("Version: v0.17"));
+    Text(win->RPort, (STRPTR)"Version: v0.18", text_len("Version: v0.18"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);

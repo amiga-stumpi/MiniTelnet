@@ -469,6 +469,21 @@ static void clear_rect(struct Dct13Terminal *term)
         (WORD)(term->top + term->height - 1));
 }
 
+
+static void blank_all_cells(struct Dct13Terminal *term)
+{
+    ULONG i;
+    ULONG count;
+
+    if (!term || !term->cells)
+        return;
+    count = cell_count(term->cols, term->rows);
+    for (i = 0; i < count; ++i) {
+        term->cells[i].ch = ' ';
+        term->cells[i].attr = DEFAULT_ATTR;
+    }
+}
+
 static void blank_cell(struct Dct13Terminal *term, UWORD row, UWORD col)
 {
     struct Dct13Cell *cell;
@@ -539,6 +554,7 @@ int dct13_term_init(struct Dct13Terminal *term, struct Window *win,
     term->saved_col = 0;
     term->saved_row = 0;
     term->attr = DEFAULT_ATTR;
+    term->auto_wrap = 1;
     term->mode = DCT13_TERM_MODE_ANSI_IBM;
     term->defer_draw = 0;
     term->dirty_any = 0;
@@ -607,20 +623,14 @@ int dct13_term_resize(struct Dct13Terminal *term,
 
 void dct13_term_clear(struct Dct13Terminal *term)
 {
-    ULONG i;
-    ULONG count;
-
     if (!term || !term->cells)
         return;
-    count = cell_count(term->cols, term->rows);
-    for (i = 0; i < count; ++i) {
-        term->cells[i].ch = ' ';
-        term->cells[i].attr = DEFAULT_ATTR;
-    }
+    blank_all_cells(term);
     term->cursor_col = 0;
     term->cursor_row = 0;
     term->saved_col = 0;
     term->saved_row = 0;
+    term->auto_wrap = 1;
     dct13_ansi_init(&term->ansi);
     if (term->defer_draw)
         mark_dirty_all(term);
@@ -716,10 +726,15 @@ void dct13_term_put_char(struct Dct13Terminal *term, UBYTE ch)
         mark_dirty_row(term, term->cursor_row);
     else
         draw_cell(term, term->cursor_row, term->cursor_col);
-    ++term->cursor_col;
-    if (term->cursor_col >= term->cols) {
-        term->cursor_col = 0;
-        dct13_term_lf(term);
+    if ((ULONG)term->cursor_col + 1UL >= term->cols) {
+        if (term->auto_wrap) {
+            term->cursor_col = 0;
+            dct13_term_lf(term);
+        } else {
+            term->cursor_col = (UWORD)(term->cols - 1);
+        }
+    } else {
+        ++term->cursor_col;
     }
 }
 
@@ -805,6 +820,13 @@ void dct13_term_restore_cursor(struct Dct13Terminal *term)
     dct13_term_move_cursor(term, (WORD)term->saved_row, (WORD)term->saved_col);
 }
 
+void dct13_term_set_auto_wrap(struct Dct13Terminal *term, UBYTE enabled)
+{
+    if (!term)
+        return;
+    term->auto_wrap = enabled ? 1 : 0;
+}
+
 void dct13_term_clear_screen(struct Dct13Terminal *term, UWORD mode)
 {
     UWORD row;
@@ -812,7 +834,11 @@ void dct13_term_clear_screen(struct Dct13Terminal *term, UWORD mode)
     if (!term || !term->cells)
         return;
     if (mode == 2) {
-        dct13_term_clear(term);
+        blank_all_cells(term);
+        if (term->defer_draw)
+            mark_dirty_all(term);
+        else
+            dct13_term_redraw(term);
         return;
     }
     if (mode == 1) {

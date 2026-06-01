@@ -31,6 +31,7 @@ struct Dct13Terminal {
     UBYTE terminal_font_opened;
     UBYTE direct_cp437;
     UBYTE color_pens;
+    UBYTE auto_wrap;
     char font_name[64];
     UWORD font_size;
     UWORD cols;
@@ -74,6 +75,7 @@ void dct13_term_move_cursor(struct Dct13Terminal *term, WORD row, WORD col);
 void dct13_term_move_relative(struct Dct13Terminal *term, WORD drow, WORD dcol);
 void dct13_term_save_cursor(struct Dct13Terminal *term);
 void dct13_term_restore_cursor(struct Dct13Terminal *term);
+void dct13_term_set_auto_wrap(struct Dct13Terminal *term, UBYTE enabled);
 void dct13_term_clear_screen(struct Dct13Terminal *term, UWORD mode);
 void dct13_term_clear_line(struct Dct13Terminal *term, UWORD mode);
 void dct13_term_set_attr(struct Dct13Terminal *term, UWORD code);

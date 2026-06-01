@@ -7,6 +7,7 @@
 #include <graphics/gfx.h>
 #include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
+#include <graphics/view.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/intuition.h>
@@ -19,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.18 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.19 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -92,6 +93,9 @@ static UWORD g_font_top;
 static UWORD g_font_sizes[FONT_SIZE_MAX];
 static UWORD g_font_size_count;
 static UWORD g_font_size_selected;
+static UWORD g_old_colors[8];
+static UWORD g_old_color_count;
+static UBYTE g_palette_saved;
 struct AddrBookEntry {
     char name[ADDR_NAME_SIZE];
     char host[DCT13_HOST_SIZE];
@@ -823,7 +827,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.18", text_len("Version: v0.18"));
+    Text(win->RPort, (STRPTR)"Version: v0.19", text_len("Version: v0.19"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1324,17 +1328,76 @@ static void close_libs(void)
         CloseLibrary((struct Library *)IntuitionBase);
 }
 
+static UWORD screen_color_count(void)
+{
+    UBYTE depth;
+    UWORD count;
+
+    depth = 1;
+    if (g_win && g_win->WScreen)
+        depth = g_win->WScreen->BitMap.Depth;
+    if (depth > 3)
+        depth = 3;
+    count = (UWORD)(1U << depth);
+    if (count > 8)
+        count = 8;
+    return count;
+}
+
+static void apply_terminal_palette(void)
+{
+    static const UWORD ansi_colors[8] = {
+        0x000, 0xfff, 0xf00, 0x0f0, 0x00f, 0xf0f, 0xff0, 0x0ff
+    };
+    struct ViewPort *vp;
+    UWORD count;
+    UWORD i;
+    ULONG rgb;
+
+    if (!g_win)
+        return;
+    vp = ViewPortAddress(g_win);
+    if (!vp || !vp->ColorMap)
+        return;
+    count = screen_color_count();
+    if (!g_palette_saved) {
+        g_old_color_count = count;
+        for (i = 0; i < count; ++i) {
+            rgb = GetRGB4(vp->ColorMap, i);
+            g_old_colors[i] = (UWORD)(rgb & 0x0fff);
+        }
+        g_palette_saved = 1;
+    }
+    LoadRGB4(vp, ansi_colors, count);
+}
+
+static void restore_terminal_palette(void)
+{
+    struct ViewPort *vp;
+
+    if (!g_win || !g_palette_saved || g_old_color_count == 0)
+        return;
+    vp = ViewPortAddress(g_win);
+    if (!vp)
+        return;
+    LoadRGB4(vp, g_old_colors, g_old_color_count);
+    g_palette_saved = 0;
+    g_old_color_count = 0;
+}
+
 static int open_window(void)
 {
     set_initial_window_size();
     g_win = OpenWindow(&g_new_window);
     if (!g_win)
         return 0;
+    apply_terminal_palette();
     if (!dct13_term_init(&g_term, g_win,
         (WORD)(g_win->BorderLeft + TERMINAL_MARGIN),
         (WORD)(g_win->BorderTop + TERMINAL_MARGIN),
         (WORD)(g_win->Width - g_win->BorderLeft - g_win->BorderRight - (TERMINAL_MARGIN * 2)),
         (WORD)(g_win->Height - g_win->BorderTop - g_win->BorderBottom - (TERMINAL_MARGIN * 2)))) {
+        restore_terminal_palette();
         CloseWindow(g_win);
         g_win = 0;
         return 0;
@@ -1353,6 +1416,7 @@ static void close_window(void)
     if (g_win) {
         ClearMenuStrip(g_win);
         dct13_term_free(&g_term);
+        restore_terminal_palette();
         CloseWindow(g_win);
         g_win = 0;
     }

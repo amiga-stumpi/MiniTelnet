@@ -5,7 +5,7 @@
 Version string:
 
 ```text
-MiniTelnet v0.18 by Marcel Jaehne (c)2026
+MiniTelnet v0.19 by Marcel Jaehne (c)2026
 ```
 
 ## Requirements
@@ -19,7 +19,7 @@ Planned later integrations:
 - `xprzmodem.library` in `LIBS:` for `Project -> ZModem Download`.
 - `reqtools.library` for future requesters.
 
-## Current v0.18 Scope
+## Current v0.19 Scope
 
 Implemented:
 
@@ -88,7 +88,7 @@ Selecting an entry copies its host and port into the edit fields. `Save` adds or
 
 ## Configuration
 
-MiniTelnet v0.18 loads optional settings from `minitelnet.conf` in the drawer/current directory from which the program was started. Missing or invalid files are ignored and defaults are used. For Shell launch this is the current directory. Workbench-specific startup drawer handling is not yet implemented; launch from the desired drawer or save from the running program.
+MiniTelnet v0.19 loads optional settings from `minitelnet.conf` in the drawer/current directory from which the program was started. Missing or invalid files are ignored and defaults are used. For Shell launch this is the current directory. Workbench-specific startup drawer handling is not yet implemented; launch from the desired drawer or save from the running program.
 
 Use `Settings -> Save Settings` to write the current host, port, terminal font, font size, and terminal mode. The file format is simple `key=value` text:
 
@@ -107,7 +107,7 @@ Supported keys are `host`, `port`, `font`, `font_size`, and `terminal_mode`. Inv
 
 `Project -> ZModem Download` opens `xprzmodem.library`, installs MiniTelnet socket and file callbacks, and starts XPR receive mode. Incoming ZModem bytes are read directly from the active Telnet socket, with Telnet `0xff` escaping collapsed before data is passed to XPR. Files are written in the current startup drawer because there is no ReqTools path requester yet.
 
-Limitations for v0.18:
+Limitations for v0.19:
 
 - Download only; upload is not enabled yet.
 - The transfer runs synchronously and the main window is not fully interactive until it completes.
@@ -120,7 +120,7 @@ MiniTelnet no longer uses XEM libraries by default or from the menu. The availab
 
 ## Terminal and ANSI Support
 
-MiniTelnet v0.18 opens initially as a borderless fullscreen terminal and uses the whole visible screen area. The terminal margin is zero so a 640-pixel Workbench screen with an 8-pixel IBM font yields a real 80-column grid. Status messages are shown in the window title so no bottom status line reduces the terminal grid. The terminal grid uses the active window font metrics and enforces a minimum of 20 columns by 5 rows. Existing visible text is preserved as far as practical during resize.
+MiniTelnet v0.19 opens initially as a borderless fullscreen terminal and uses the whole visible screen area. The terminal margin is zero so a 640-pixel Workbench screen with an 8-pixel IBM font yields a real 80-column grid. Status messages are shown in the window title so no bottom status line reduces the terminal grid. The terminal grid uses the active window font metrics and enforces a minimum of 20 columns by 5 rows. Existing visible text is preserved as far as practical during resize.
 
 The ANSI parser handles common Telnet/BBS sequences:
 
@@ -132,7 +132,7 @@ The ANSI parser handles common Telnet/BBS sequences:
 - `ESC[J`, `ESC[2J`, `ESC[K`, and `ESC[2K`.
 - `ESC[0m`, `ESC[1m`, `ESC[7m`, foreground `30..37`, and background `40..47`.
 
-Color and attribute sequences are parsed and rendered. Foreground `30..37`, background `40..47`, bold, and inverse are stored per terminal cell. On screens with at least 8 pens, MiniTelnet maps ANSI colors to Amiga pens 0..7. On lower-depth Workbench screens it falls back to a reduced palette or monochrome/inverse rendering. Unknown escape sequences are ignored instead of being printed raw.
+MiniTelnet installs an ANSI-oriented screen palette while it is open: pen 0 black, pen 1 white, then red, green, blue, magenta, yellow, and cyan where the screen depth allows it. The previous palette is restored on exit. Color and attribute sequences are parsed and rendered. Foreground `30..37`, background `40..47`, bold, and inverse are stored per terminal cell. On screens with at least 8 pens, MiniTelnet maps ANSI colors to Amiga pens 0..7. On lower-depth Workbench screens it falls back to a reduced palette or monochrome/inverse rendering. Unknown escape sequences are ignored instead of being printed raw.
 
 The default terminal mode is `ANSI_IBM`. Printable bytes are interpreted as IBM Codepage 437 after Telnet IAC and ANSI escape filtering. When the active terminal font is `ibm.font`, MiniTelnet passes CP437 printable bytes directly to the font so real IBM/ANSI glyphs can be displayed. With any other font, MiniTelnet falls back to a conservative readable mapping: box drawing becomes `+`, `-`, and `|`, block/shade characters become `#`, `.`, or `:`, and unsupported extended characters become `?`.
 
@@ -157,7 +157,7 @@ The terminal font is opened with OS1.3-safe font APIs: MiniTelnet tries `OpenFon
 
 Runtime selection is available from `Settings -> Terminal Font...`. MiniTelnet opens a small OS1.3 Intuition list requester, scans `FONTS:` for entries ending in `.font`, and shows a font list plus an available size list. Sizes are read from the matching bitmap font drawer, for example `FONTS:ibm/8` for `ibm.font`, `FONTS:ruby/8` for `ruby.font`, or `FONTS:topaz/11` for `topaz.font`. `OK` applies the highlighted font and size to the terminal area for the current session; `Cancel` and the close gadget discard the selection. The menu text and dialog controls keep using the normal window font.
 
-If `ibm.font` size 8 cannot be opened, MiniTelnet tries `ruby.font` size 8, then `topaz.font` size 11, then falls back to the current window font. If a selected font/size cannot be opened, the window title reports `Font not available` and the previous terminal font remains active. Font selection can be saved to `minitelnet.conf` in v0.18. This is a simple OS1.3 list requester, not a modern dropdown. Choose a monospaced font for ANSI/BBS output.
+If `ibm.font` size 8 cannot be opened, MiniTelnet tries `ruby.font` size 8, then `topaz.font` size 11, then falls back to the current window font. If a selected font/size cannot be opened, the window title reports `Font not available` and the previous terminal font remains active. Font selection can be saved to `minitelnet.conf` in v0.19. This is a simple OS1.3 list requester, not a modern dropdown. Choose a monospaced font for ANSI/BBS output.
 
 Build-time overrides are available:
 

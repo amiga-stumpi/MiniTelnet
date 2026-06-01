@@ -13,7 +13,12 @@
 
 #define MIN_COLS 20
 #define MIN_ROWS 5
-#define DEFAULT_ATTR 0
+#define ATTR_FG_MASK 0x07
+#define ATTR_BG_MASK 0x38
+#define ATTR_BG_SHIFT 3
+#define ATTR_BOLD 0x40
+#define ATTR_INVERSE 0x80
+#define DEFAULT_ATTR 7
 
 #ifndef DCTELNET13_TERM_FONT_NAME
 #define DCTELNET13_TERM_FONT_NAME "ibm.font"
@@ -27,6 +32,87 @@ struct Library *DiskfontBase;
 static UBYTE g_space[128];
 static UBYTE g_row_text[256];
 
+
+
+static UBYTE screen_depth(struct Dct13Terminal *term)
+{
+    UBYTE depth;
+
+    depth = 1;
+    if (term && term->win && term->win->WScreen)
+        depth = term->win->WScreen->BitMap.Depth;
+    else if (term && term->win && term->win->RPort && term->win->RPort->BitMap)
+        depth = term->win->RPort->BitMap->Depth;
+    if (depth > 5)
+        depth = 5;
+    return depth;
+}
+
+static void update_color_mode(struct Dct13Terminal *term)
+{
+    UBYTE depth;
+
+    if (!term)
+        return;
+    depth = screen_depth(term);
+    if (depth >= 3)
+        term->color_pens = 8;
+    else if (depth >= 2)
+        term->color_pens = 4;
+    else
+        term->color_pens = 2;
+}
+
+static UBYTE ansi_pen_to_amiga(UBYTE color, UBYTE pens)
+{
+    static const UBYTE map8[8] = { 0, 2, 3, 6, 4, 5, 7, 1 };
+    static const UBYTE map4[8] = { 0, 1, 2, 1, 3, 1, 2, 1 };
+
+    color &= 7;
+    if (pens >= 8)
+        return map8[color];
+    if (pens >= 4)
+        return map4[color];
+    return color == 0 ? 0 : 1;
+}
+
+static void attr_to_pens(struct Dct13Terminal *term, UBYTE attr, UBYTE *apen, UBYTE *bpen)
+{
+    UBYTE fg;
+    UBYTE bg;
+    UBYTE tmp;
+    UBYTE pens;
+
+    pens = term ? term->color_pens : 2;
+    fg = (UBYTE)(attr & ATTR_FG_MASK);
+    bg = (UBYTE)((attr & ATTR_BG_MASK) >> ATTR_BG_SHIFT);
+    if (attr & ATTR_BOLD) {
+        if (fg == 0)
+            fg = 7;
+    }
+    if (attr & ATTR_INVERSE) {
+        tmp = fg;
+        fg = bg;
+        bg = tmp;
+    }
+    *apen = ansi_pen_to_amiga(fg, pens);
+    *bpen = ansi_pen_to_amiga(bg, pens);
+    if (pens < 4) {
+        *apen = (attr & ATTR_INVERSE) ? 0 : 1;
+        *bpen = (attr & ATTR_INVERSE) ? 1 : 0;
+    }
+}
+
+static void set_terminal_attr_pens(struct Dct13Terminal *term, UBYTE attr)
+{
+    UBYTE apen;
+    UBYTE bpen;
+
+    attr_to_pens(term, attr, &apen, &bpen);
+    SetAPen(term->win->RPort, apen);
+    SetBPen(term->win->RPort, bpen);
+    SetDrMd(term->win->RPort, JAM2);
+}
 
 static int text_equal_nocase(const char *a, const char *b)
 {
@@ -263,6 +349,7 @@ static void open_terminal_font(struct Dct13Terminal *term)
     if (term->win && term->win->RPort)
         term->gui_font = term->win->RPort->Font;
     install_font_or_fallback(term, DCTELNET13_TERM_FONT_NAME, DCTELNET13_TERM_FONT_SIZE);
+    update_color_mode(term);
     update_font_metrics(term);
 }
 
@@ -365,9 +452,7 @@ static void draw_cell(struct Dct13Terminal *term, UWORD row, UWORD col)
     x = (WORD)(term->left + col * term->char_width);
     y = (WORD)(term->top + term->baseline + row * term->char_height);
     select_terminal_font(term);
-    SetAPen(term->win->RPort, 1);
-    SetBPen(term->win->RPort, 0);
-    SetDrMd(term->win->RPort, JAM2);
+    set_terminal_attr_pens(term, cell->attr);
     Move(term->win->RPort, x, y);
     Text(term->win->RPort, (STRPTR)&ch, 1);
     dct13_term_restore_gui_rp(term);
@@ -513,6 +598,7 @@ int dct13_term_resize(struct Dct13Terminal *term,
     term->rows = new_rows;
     term->status_top = (WORD)(top + height + 4);
     clamp_cursor(term);
+    update_color_mode(term);
     dct13_term_redraw(term);
     return 1;
 }
@@ -538,33 +624,52 @@ void dct13_term_clear(struct Dct13Terminal *term)
         dct13_term_redraw(term);
 }
 
+static void draw_run(struct Dct13Terminal *term, UWORD row, UWORD start, UWORD len, UBYTE attr)
+{
+    WORD x;
+    WORD y;
+
+    if (len == 0)
+        return;
+    x = (WORD)(term->left + start * term->char_width);
+    y = (WORD)(term->top + term->baseline + row * term->char_height);
+    set_terminal_attr_pens(term, attr);
+    Move(term->win->RPort, x, y);
+    Text(term->win->RPort, (STRPTR)g_row_text, len);
+}
+
 static void draw_row(struct Dct13Terminal *term, UWORD row)
 {
+    struct Dct13Cell *cell;
     UWORD col;
-    UWORD n;
-    WORD y;
+    UWORD run_start;
+    UWORD run_len;
+    UBYTE run_attr;
+    UBYTE ch;
 
     if (!term || !term->win || !term->cells || row >= term->rows)
         return;
-    n = term->cols;
-    if (n > sizeof(g_row_text))
-        n = sizeof(g_row_text);
-    for (col = 0; col < n; ++col) {
-        g_row_text[col] = term->cells[(ULONG)row * term->cols + col].ch;
-        if (!g_row_text[col])
-            g_row_text[col] = ' ';
-    }
     select_terminal_font(term);
     SetAPen(term->win->RPort, 0);
     RectFill(term->win->RPort, term->left, (WORD)(term->top + row * term->char_height),
         (WORD)(term->left + term->width - 1),
         (WORD)(term->top + (row + 1) * term->char_height - 1));
-    SetAPen(term->win->RPort, 1);
-    SetBPen(term->win->RPort, 0);
-    SetDrMd(term->win->RPort, JAM2);
-    y = (WORD)(term->top + term->baseline + row * term->char_height);
-    Move(term->win->RPort, term->left, y);
-    Text(term->win->RPort, (STRPTR)g_row_text, n);
+
+    run_start = 0;
+    run_len = 0;
+    run_attr = term->cells[(ULONG)row * term->cols].attr;
+    for (col = 0; col < term->cols; ++col) {
+        cell = &term->cells[(ULONG)row * term->cols + col];
+        if (cell->attr != run_attr || run_len >= sizeof(g_row_text)) {
+            draw_run(term, row, run_start, run_len, run_attr);
+            run_start = col;
+            run_len = 0;
+            run_attr = cell->attr;
+        }
+        ch = cell->ch ? cell->ch : ' ';
+        g_row_text[run_len++] = ch;
+    }
+    draw_run(term, row, run_start, run_len, run_attr);
     dct13_term_restore_gui_rp(term);
 }
 
@@ -723,17 +828,30 @@ void dct13_term_clear_line(struct Dct13Terminal *term, UWORD mode)
 
 void dct13_term_set_attr(struct Dct13Terminal *term, UWORD code)
 {
+    UBYTE color;
+
     if (!term)
         return;
     if (code == 0) {
         term->attr = DEFAULT_ATTR;
     } else if (code == 1) {
-        term->attr |= 1;
+        term->attr |= ATTR_BOLD;
+    } else if (code == 22) {
+        term->attr &= (UBYTE)~ATTR_BOLD;
     } else if (code == 7) {
-        term->attr |= 2;
-    } else if ((code >= 30 && code <= 37) || (code >= 40 && code <= 47)) {
-        /* Parsed and stored later; drawing remains monochrome in the internal renderer. */
-        term->attr = (UBYTE)(term->attr | 4);
+        term->attr |= ATTR_INVERSE;
+    } else if (code == 27) {
+        term->attr &= (UBYTE)~ATTR_INVERSE;
+    } else if (code >= 30 && code <= 37) {
+        color = (UBYTE)(code - 30);
+        term->attr = (UBYTE)((term->attr & (UBYTE)~ATTR_FG_MASK) | color);
+    } else if (code == 39) {
+        term->attr = (UBYTE)((term->attr & (UBYTE)~ATTR_FG_MASK) | 7);
+    } else if (code >= 40 && code <= 47) {
+        color = (UBYTE)(code - 40);
+        term->attr = (UBYTE)((term->attr & (UBYTE)~ATTR_BG_MASK) | (UBYTE)(color << ATTR_BG_SHIFT));
+    } else if (code == 49) {
+        term->attr &= (UBYTE)~ATTR_BG_MASK;
     }
 }
 

@@ -6,7 +6,7 @@ classic Amiga systems.
 Version:
 
 ```text
-MiniTelnet v0.14 by Marcel Jaehne (c)2026
+MiniTelnet v0.15 by Marcel Jaehne (c)2026
 ```
 
 It was split out of TheWire13 and remains designed for AmigaOS 1.3, 68000, and
@@ -19,7 +19,7 @@ stack APIs.
 - Plain Intuition GUI, no GadTools/MUI/ReAction/ASL.
 - Menu-driven operation: `Project -> Connect` opens a Host/Port dialog; `minitelnet.conf` load/save persists settings.
 - Telnet IAC filtering.
-- Internal ANSI/VT100 parser with CP437/IBM BBS character handling.
+- Internal ANSI/VT100 parser with CP437/IBM BBS character handling and ANSI color rendering.
 - Runtime terminal font selection from `FONTS:`.
 - XPR ZModem download via `Project -> ZModem Download` and
   `xprzmodem.library`.

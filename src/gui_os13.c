@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.21 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.22 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -1697,9 +1697,9 @@ static void handle_menu(UWORD code)
             if (item_no == 0)
                 open_font_selector();
             else if (item_no == 1)
-                save_settings();
-            else if (item_no == 2)
                 switch_screen_mode();
+            else if (item_no == 2)
+                save_settings();
         }
         code = item ? item->NextSelect : MENUNULL;
     }

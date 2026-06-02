@@ -20,10 +20,12 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.25 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.26 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
+#define CHIPRAM_512K 524288UL
+#define CHIPRAM_1M 1048576UL
 
 #define TERMINAL_MARGIN 0
 #define CONN_LIST_X 12
@@ -321,9 +323,22 @@ static void set_initial_window_size(void)
     g_new_window.MaxHeight = height;
 }
 
+static UBYTE choose_screen_depth(void)
+{
+    ULONG chip_free;
+
+    chip_free = AvailMem(MEMF_CHIP);
+    if (chip_free <= CHIPRAM_512K)
+        return 2;
+    if (chip_free <= CHIPRAM_1M)
+        return 3;
+    return 4;
+}
+
 static int open_custom_screen(void)
 {
     struct Screen *base;
+    UBYTE depth;
 
     if (g_custom_screen)
         return 1;
@@ -339,11 +354,13 @@ static int open_custom_screen(void)
     if (g_new_screen.Height < 200)
         g_new_screen.Height = 200;
 
-    g_new_screen.Depth = 3;
-    g_custom_screen = OpenScreen(&g_new_screen);
-    if (!g_custom_screen) {
-        g_new_screen.Depth = 2;
+    depth = choose_screen_depth();
+    while (depth >= 2) {
+        g_new_screen.Depth = depth;
         g_custom_screen = OpenScreen(&g_new_screen);
+        if (g_custom_screen)
+            break;
+        --depth;
     }
     return g_custom_screen != 0;
 }
@@ -888,7 +905,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.25", text_len("Version: v0.25"));
+    Text(win->RPort, (STRPTR)"Version: v0.26", text_len("Version: v0.26"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);

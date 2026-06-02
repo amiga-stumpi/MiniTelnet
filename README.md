@@ -6,7 +6,7 @@ classic Amiga systems.
 Version:
 
 ```text
-MiniTelnet v0.27 by Marcel Jaehne (c)2026
+MiniTelnet v0.28 by Marcel Jaehne (c)2026
 ```
 
 It was split out of TheWire13 and remains designed for AmigaOS 1.3, 68000, and

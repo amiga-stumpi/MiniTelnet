@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.27 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.28 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -926,7 +926,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.27", text_len("Version: v0.27"));
+    Text(win->RPort, (STRPTR)"Version: v0.28", text_len("Version: v0.28"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1503,7 +1503,7 @@ static void make_startup_message(char *dst, ULONG dst_size)
 
     pos = 0;
     chip_kb = (g_screen_chip_free + 1023UL) / 1024UL;
-    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.27 - i found ");
+    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.28 - i found ");
     append_ulong(dst, &pos, dst_size, chip_kb);
     append_text(dst, dst_size, &pos, " KB of chipram so ");
     append_uword(dst, &pos, dst_size, g_screen_depth);
@@ -1610,6 +1610,15 @@ static void disconnect(void)
         dct13_net_close(&g_net);
         copy_status("Disconnected");
     }
+}
+
+static void hangup_now(void)
+{
+    if (dct13_net_connected(&g_net)) {
+        dct13_net_close(&g_net);
+        copy_status("Disconnected");
+    }
+    dct13_term_clear(&g_term);
 }
 
 static void connect_now(void)
@@ -1725,7 +1734,7 @@ static void handle_menu(UWORD code)
                     connect_now();
             }
             else if (item_no == 1)
-                disconnect();
+                hangup_now();
             else if (item_no == 2)
                 clear_terminal_view();
             else if (item_no == 3)

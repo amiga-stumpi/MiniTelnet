@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.20 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.21 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -269,7 +269,7 @@ static struct NewScreen g_new_screen = {
     HIRES,
     CUSTOMSCREEN,
     0,
-    (STRPTR)TITLE,
+    (STRPTR)"MiniTelnet Own Screen",
     0,
     0
 };
@@ -1486,7 +1486,9 @@ static int open_window(void)
     dct13_term_set_mode(&g_term, g_cfg.terminal_mode);
     SetMenuStrip(g_win, &g_project_menu);
     dct13_term_clear(&g_term);
-    copy_status("Ready");
+    if (g_use_custom_screen)
+        dct13_term_write(&g_term, (const UBYTE *)"[MiniTelnet Own Screen]\r\n", 24);
+    copy_status(g_use_custom_screen ? "Own screen" : "Ready");
     return 1;
 }
 

@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.23 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.24 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -888,7 +888,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.20", text_len("Version: v0.20"));
+    Text(win->RPort, (STRPTR)"Version: v0.24", text_len("Version: v0.24"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1179,10 +1179,22 @@ static void draw_addr_book_list(struct Window *win)
     UWORD idx;
     UWORD i;
     UWORD j;
+    UWORD max_chars;
     WORD y;
     char line[96];
 
     draw_box(win, CONN_LIST_X, CONN_LIST_Y, CONN_LIST_W, CONN_LIST_H);
+    if (g_term.terminal_font)
+        SetFont(win->RPort, g_term.terminal_font);
+    SetAPen(win->RPort, 0);
+    SetBPen(win->RPort, 1);
+    SetDrMd(win->RPort, JAM1);
+    if (win->RPort->TxWidth > 0)
+        max_chars = (UWORD)((CONN_LIST_W - 6) / win->RPort->TxWidth);
+    else
+        max_chars = 20;
+    if (max_chars >= sizeof(line))
+        max_chars = (UWORD)(sizeof(line) - 1);
     for (row = 0; row < CONN_VISIBLE; ++row) {
         idx = (UWORD)(g_addr_top + row);
         if (idx >= g_addr_count)
@@ -1190,13 +1202,13 @@ static void draw_addr_book_list(struct Window *win)
         line[0] = (idx == g_addr_selected) ? '>' : ' ';
         line[1] = ' ';
         i = 2;
-        for (j = 0; g_addr_book[idx].name[j] && ((ULONG)i + 1UL) < sizeof(line); ++j)
+        for (j = 0; g_addr_book[idx].name[j] && i < max_chars; ++j)
             line[i++] = g_addr_book[idx].name[j];
-        if (((ULONG)i + 2UL) < sizeof(line)) {
+        if ((UWORD)(i + 2) < max_chars) {
             line[i++] = ':';
             line[i++] = ' ';
         }
-        for (j = 0; g_addr_book[idx].port[j] && ((ULONG)i + 1UL) < sizeof(line); ++j)
+        for (j = 0; g_addr_book[idx].port[j] && i < max_chars; ++j)
             line[i++] = g_addr_book[idx].port[j];
         line[i] = 0;
         y = (WORD)(CONN_LIST_Y + 10 + row * CONN_ROW_H);
@@ -1207,6 +1219,8 @@ static void draw_addr_book_list(struct Window *win)
         Move(win->RPort, (WORD)(CONN_LIST_X + 3), (WORD)(CONN_LIST_Y + 18));
         Text(win->RPort, (STRPTR)"No entries", 10);
     }
+    if (g_term.gui_font)
+        SetFont(win->RPort, g_term.gui_font);
 }
 
 static void draw_connect_dialog(struct Window *win)

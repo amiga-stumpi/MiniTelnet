@@ -20,12 +20,12 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.28 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.29 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
-#define CHIPRAM_512K 524288UL
-#define CHIPRAM_1M 1048576UL
+#define CHIPRAM_100K 102400UL
+#define CHIPRAM_256K 262144UL
 
 #define TERMINAL_MARGIN 0
 #define CONN_LIST_X 12
@@ -331,9 +331,9 @@ static UBYTE choose_screen_depth(void)
 
     chip_free = AvailMem(MEMF_CHIP);
     g_screen_chip_free = chip_free;
-    if (chip_free <= CHIPRAM_512K)
+    if (chip_free <= CHIPRAM_100K)
         return 2;
-    if (chip_free <= CHIPRAM_1M)
+    if (chip_free < CHIPRAM_256K)
         return 3;
     return 4;
 }
@@ -926,7 +926,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.28", text_len("Version: v0.28"));
+    Text(win->RPort, (STRPTR)"Version: v0.29", text_len("Version: v0.29"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1503,7 +1503,7 @@ static void make_startup_message(char *dst, ULONG dst_size)
 
     pos = 0;
     chip_kb = (g_screen_chip_free + 1023UL) / 1024UL;
-    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.28 - i found ");
+    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.29 - i found ");
     append_ulong(dst, &pos, dst_size, chip_kb);
     append_text(dst, dst_size, &pos, " KB of chipram so ");
     append_uword(dst, &pos, dst_size, g_screen_depth);

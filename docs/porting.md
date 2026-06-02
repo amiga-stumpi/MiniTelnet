@@ -18,7 +18,7 @@ The upstream source and documentation still target Kickstart/Workbench 2.00+ (`V
 
 The MiniTelnet code does not compile upstream DCTelnet directly. It creates a new OS1.3-safe client in `src/` and keeps upstream as reference.
 
-Current v0.26 choices:
+Current v0.27 choices:
 
 - Plain Intuition `OpenWindow`, `NewWindow`, classic gadgets, and `IDCMP_VANILLAKEY`.
 - Direct `bsdsocket.library` calls through explicit library-vector wrappers.

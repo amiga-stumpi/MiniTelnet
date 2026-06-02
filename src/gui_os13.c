@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.26 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.27 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -99,6 +99,8 @@ static UWORD g_font_size_selected;
 static UWORD g_old_colors[8];
 static UWORD g_old_color_count;
 static UBYTE g_palette_saved;
+static ULONG g_screen_chip_free;
+static UBYTE g_screen_depth;
 struct AddrBookEntry {
     char name[ADDR_NAME_SIZE];
     char host[DCT13_HOST_SIZE];
@@ -328,6 +330,7 @@ static UBYTE choose_screen_depth(void)
     ULONG chip_free;
 
     chip_free = AvailMem(MEMF_CHIP);
+    g_screen_chip_free = chip_free;
     if (chip_free <= CHIPRAM_512K)
         return 2;
     if (chip_free <= CHIPRAM_1M)
@@ -358,8 +361,10 @@ static int open_custom_screen(void)
     while (depth >= 2) {
         g_new_screen.Depth = depth;
         g_custom_screen = OpenScreen(&g_new_screen);
-        if (g_custom_screen)
+        if (g_custom_screen) {
+            g_screen_depth = depth;
             break;
+        }
         --depth;
     }
     return g_custom_screen != 0;
@@ -464,6 +469,22 @@ static void append_uword(char *text, UWORD *pos, ULONG max, UWORD value)
         --i;
         digits[i] = (char)('0' + (value % 10U));
         value = (UWORD)(value / 10U);
+    } while (value && i > 0);
+    while (digits[i] && ((ULONG)(*pos) + 1UL) < max)
+        text[(*pos)++] = digits[i++];
+}
+
+static void append_ulong(char *text, UWORD *pos, ULONG max, ULONG value)
+{
+    char digits[12];
+    UWORD i;
+
+    i = sizeof(digits) - 1;
+    digits[i] = 0;
+    do {
+        --i;
+        digits[i] = (char)('0' + (value % 10UL));
+        value /= 10UL;
     } while (value && i > 0);
     while (digits[i] && ((ULONG)(*pos) + 1UL) < max)
         text[(*pos)++] = digits[i++];
@@ -905,7 +926,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.26", text_len("Version: v0.26"));
+    Text(win->RPort, (STRPTR)"Version: v0.27", text_len("Version: v0.27"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1475,6 +1496,21 @@ static void restore_terminal_palette(void)
     g_old_color_count = 0;
 }
 
+static void make_startup_message(char *dst, ULONG dst_size)
+{
+    UWORD pos;
+    ULONG chip_kb;
+
+    pos = 0;
+    chip_kb = (g_screen_chip_free + 1023UL) / 1024UL;
+    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.27 - i found ");
+    append_ulong(dst, &pos, dst_size, chip_kb);
+    append_text(dst, dst_size, &pos, " KB of chipram so ");
+    append_uword(dst, &pos, dst_size, g_screen_depth);
+    append_text(dst, dst_size, &pos, " bitplanes activated.\r\n");
+    dst[pos] = 0;
+}
+
 static int open_window(void)
 {
     if (!open_custom_screen())
@@ -1508,8 +1544,13 @@ static int open_window(void)
         dct13_term_apply_font(&g_term, g_cfg.font, g_cfg.font_size);
     dct13_term_set_mode(&g_term, g_cfg.terminal_mode);
     SetMenuStrip(g_win, &g_project_menu);
-    dct13_term_clear(&g_term);
-    dct13_term_write(&g_term, (const UBYTE *)"[MiniTelnet Own Screen]\r\n", 24);
+    {
+        char startup_msg[128];
+
+        dct13_term_clear(&g_term);
+        make_startup_message(startup_msg, sizeof(startup_msg));
+        dct13_term_write(&g_term, (const UBYTE *)startup_msg, text_len(startup_msg));
+    }
     copy_status("Own screen");
     return 1;
 }

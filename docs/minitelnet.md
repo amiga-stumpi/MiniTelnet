@@ -5,7 +5,7 @@
 Version string:
 
 ```text
-MiniTelnet v0.26 by Marcel Jaehne (c)2026
+MiniTelnet v0.27 by Marcel Jaehne (c)2026
 ```
 
 ## Requirements
@@ -19,7 +19,7 @@ Planned later integrations:
 - `xprzmodem.library` in `LIBS:` for `Project -> ZModem Download`.
 - `reqtools.library` for future requesters.
 
-## Current v0.26 Scope
+## Current v0.27 Scope
 
 Implemented:
 
@@ -30,7 +30,7 @@ Implemented:
 - Dynamic terminal area that recalculates rows/columns when the window is resized.
 - Dedicated terminal font, defaulting to `ibm.font` size 8 with `ruby.font` size 8 and `topaz.font` size 11 fallback.
 - OS1.3 menu bar with Project and Settings menus.
-- MiniTelnet always opens on a dedicated custom screen for its own ANSI palette. The screen title is `MiniTelnet Own Screen`, and the terminal writes `[MiniTelnet Own Screen]` after startup so the mode is obvious.
+- MiniTelnet always opens on a dedicated custom screen for its own ANSI palette. The screen title is `MiniTelnet Own Screen`, and the terminal writes a startup line with the MiniTelnet version, detected free ChipRAM in KB, and the activated bitplane count.
 - `Settings -> Save Settings` writes `minitelnet.conf` in the startup/current directory.
 - `Project -> Info` opens a small OS1.3-safe MiniTelnet info dialog.
 - `Project -> ZModem Download` starts an XPR receive through `xprzmodem.library`.
@@ -89,7 +89,7 @@ Selecting an entry copies its host and port into the edit fields. `Save` adds or
 
 ## Configuration
 
-MiniTelnet v0.26 loads optional settings from `minitelnet.conf` in the drawer/current directory from which the program was started. Missing or invalid files are ignored and defaults are used. For Shell launch this is the current directory. Workbench-specific startup drawer handling is not yet implemented; launch from the desired drawer or save from the running program.
+MiniTelnet v0.27 loads optional settings from `minitelnet.conf` in the drawer/current directory from which the program was started. Missing or invalid files are ignored and defaults are used. For Shell launch this is the current directory. Workbench-specific startup drawer handling is not yet implemented; launch from the desired drawer or save from the running program.
 
 Use `Settings -> Save Settings` to write the current host, port, terminal font, font size, and terminal mode. The file format is simple `key=value` text:
 
@@ -108,7 +108,7 @@ Supported keys are `host`, `port`, `font`, `font_size`, and `terminal_mode`. Inv
 
 `Project -> ZModem Download` opens `xprzmodem.library`, installs MiniTelnet socket and file callbacks, and starts XPR receive mode. Incoming ZModem bytes are read directly from the active Telnet socket, with Telnet `0xff` escaping collapsed before data is passed to XPR. Files are written in the current startup drawer because there is no ReqTools path requester yet.
 
-Limitations for v0.26:
+Limitations for v0.27:
 
 - Download only; upload is not enabled yet.
 - The transfer runs synchronously and the main window is not fully interactive until it completes.
@@ -121,7 +121,7 @@ MiniTelnet no longer uses XEM libraries by default or from the menu. The availab
 
 ## Terminal and ANSI Support
 
-MiniTelnet v0.26 opens as a borderless fullscreen terminal on its own custom screen and uses the whole visible screen area. The terminal margin is zero so a 640-pixel screen with an 8-pixel IBM font yields a real 80-column grid. Status messages are shown in the window title so no bottom status line reduces the terminal grid. The terminal grid uses the active window font metrics and enforces a minimum of 20 columns by 5 rows. Existing visible text is preserved as far as practical during resize.
+MiniTelnet v0.27 opens as a borderless fullscreen terminal on its own custom screen and uses the whole visible screen area. The terminal margin is zero so a 640-pixel screen with an 8-pixel IBM font yields a real 80-column grid. Status messages are shown in the window title so no bottom status line reduces the terminal grid. The terminal grid uses the active window font metrics and enforces a minimum of 20 columns by 5 rows. Existing visible text is preserved as far as practical during resize.
 
 The ANSI parser handles common Telnet/BBS sequences:
 
@@ -158,7 +158,7 @@ The terminal font is opened with OS1.3-safe font APIs: MiniTelnet tries `OpenFon
 
 Runtime selection is available from `Settings -> Terminal Font...`. MiniTelnet opens a small OS1.3 Intuition list requester, scans `FONTS:` for entries ending in `.font`, and shows a font list plus an available size list. Sizes are read from the matching bitmap font drawer, for example `FONTS:ibm/8` for `ibm.font`, `FONTS:ruby/8` for `ruby.font`, or `FONTS:topaz/11` for `topaz.font`. `OK` applies the highlighted font and size to the terminal area for the current session; `Cancel` and the close gadget discard the selection. The menu text and dialog controls keep using the normal window font.
 
-If `ibm.font` size 8 cannot be opened, MiniTelnet tries `ruby.font` size 8, then `topaz.font` size 11, then falls back to the current window font. If a selected font/size cannot be opened, the window title reports `Font not available` and the previous terminal font remains active. Font selection can be saved to `minitelnet.conf` in v0.26. This is a simple OS1.3 list requester, not a modern dropdown. Choose a monospaced font for ANSI/BBS output.
+If `ibm.font` size 8 cannot be opened, MiniTelnet tries `ruby.font` size 8, then `topaz.font` size 11, then falls back to the current window font. If a selected font/size cannot be opened, the window title reports `Font not available` and the previous terminal font remains active. Font selection can be saved to `minitelnet.conf` in v0.27. This is a simple OS1.3 list requester, not a modern dropdown. Choose a monospaced font for ANSI/BBS output.
 
 Build-time overrides are available:
 

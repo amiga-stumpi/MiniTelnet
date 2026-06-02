@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.19 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.20 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -74,6 +74,7 @@ struct IntuitionBase *IntuitionBase;
 struct GfxBase *GfxBase;
 
 static struct Window *g_win;
+static struct Screen *g_custom_screen;
 static struct Dct13Config g_cfg;
 static struct Dct13Net g_net;
 static struct Dct13Telnet g_telnet;
@@ -96,6 +97,7 @@ static UWORD g_font_size_selected;
 static UWORD g_old_colors[8];
 static UWORD g_old_color_count;
 static UBYTE g_palette_saved;
+static UBYTE g_use_custom_screen;
 struct AddrBookEntry {
     char name[ADDR_NAME_SIZE];
     char host[DCT13_HOST_SIZE];
@@ -170,6 +172,7 @@ static struct IntuiText g_menu_info_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Info
 static struct IntuiText g_menu_quit_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Quit", 0 };
 static struct IntuiText g_menu_font_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Terminal Font...", 0 };
 static struct IntuiText g_menu_save_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Save Settings", 0 };
+static struct IntuiText g_menu_screen_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Own Screen", 0 };
 
 static struct MenuItem g_project_quit_item = {
     0, 0, 50, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
@@ -199,8 +202,12 @@ static struct MenuItem g_settings_save_item = {
     0, 0, 10, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_save_text, 0, 0, 0, MENUNULL
 };
+static struct MenuItem g_settings_screen_item = {
+    &g_settings_save_item, 0, 20, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    (APTR)&g_menu_screen_text, 0, 0, 0, MENUNULL
+};
 static struct MenuItem g_settings_font_item = {
-    &g_settings_save_item, 0, 0, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    &g_settings_screen_item, 0, 0, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_font_text, 0, 0, 0, MENUNULL
 };
 
@@ -256,18 +263,52 @@ static struct NewWindow g_new_window = {
     WBENCHSCREEN
 };
 
-static void set_initial_window_size(void)
+static struct NewScreen g_new_screen = {
+    0, 0, 640, 256, 3,
+    0, 1,
+    HIRES,
+    CUSTOMSCREEN,
+    0,
+    (STRPTR)TITLE,
+    0,
+    0
+};
+
+static struct Screen *current_screen_for_window(void)
 {
     struct Screen *screen;
-    WORD width;
-    WORD height;
 
+    if (g_use_custom_screen && g_custom_screen)
+        return g_custom_screen;
     screen = 0;
     if (IntuitionBase) {
         screen = IntuitionBase->ActiveScreen;
         if (!screen)
             screen = IntuitionBase->FirstScreen;
     }
+    return screen;
+}
+
+static void set_window_screen(struct NewWindow *nw)
+{
+    if (!nw)
+        return;
+    if (g_use_custom_screen && g_custom_screen) {
+        nw->Screen = g_custom_screen;
+        nw->Type = CUSTOMSCREEN;
+    } else {
+        nw->Screen = 0;
+        nw->Type = WBENCHSCREEN;
+    }
+}
+
+static void set_initial_window_size(void)
+{
+    struct Screen *screen;
+    WORD width;
+    WORD height;
+
+    screen = current_screen_for_window();
     if (!screen)
         return;
 
@@ -284,6 +325,35 @@ static void set_initial_window_size(void)
     g_new_window.Height = height;
     g_new_window.MaxWidth = width;
     g_new_window.MaxHeight = height;
+}
+
+static int open_custom_screen(void)
+{
+    struct Screen *base;
+
+    if (!g_use_custom_screen)
+        return 1;
+    if (g_custom_screen)
+        return 1;
+
+    base = current_screen_for_window();
+    if (base) {
+        g_new_screen.Width = base->Width;
+        g_new_screen.Height = base->Height;
+        g_new_screen.ViewModes = (base->Width >= 640) ? HIRES : 0;
+    }
+    if (g_new_screen.Width < 320)
+        g_new_screen.Width = 320;
+    if (g_new_screen.Height < 200)
+        g_new_screen.Height = 200;
+
+    g_new_screen.Depth = 3;
+    g_custom_screen = OpenScreen(&g_new_screen);
+    if (!g_custom_screen) {
+        g_new_screen.Depth = 2;
+        g_custom_screen = OpenScreen(&g_new_screen);
+    }
+    return g_custom_screen != 0;
 }
 
 static UWORD text_len(const char *text)
@@ -746,13 +816,12 @@ static void open_font_selector(void)
     nw.FirstGadget = &g_font_up_gad;
     nw.CheckMark = 0;
     nw.Title = (STRPTR)"Terminal Font";
-    nw.Screen = 0;
     nw.BitMap = 0;
     nw.MinWidth = 292;
     nw.MinHeight = 178;
     nw.MaxWidth = 292;
     nw.MaxHeight = 178;
-    nw.Type = WBENCHSCREEN;
+    set_window_screen(&nw);
     fw = OpenWindow(&nw);
     if (!fw) {
         copy_status("Font requester failed");
@@ -827,7 +896,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.19", text_len("Version: v0.19"));
+    Text(win->RPort, (STRPTR)"Version: v0.20", text_len("Version: v0.20"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -863,13 +932,12 @@ static void open_info_dialog(void)
     nw.FirstGadget = &g_info_ok_gad;
     nw.CheckMark = 0;
     nw.Title = (STRPTR)"MiniTelnet Info";
-    nw.Screen = 0;
     nw.BitMap = 0;
     nw.MinWidth = 540;
     nw.MinHeight = 130;
     nw.MaxWidth = 540;
     nw.MaxHeight = 130;
-    nw.Type = WBENCHSCREEN;
+    set_window_screen(&nw);
     iw = OpenWindow(&nw);
     if (!iw) {
         copy_status("Info window failed");
@@ -1215,13 +1283,12 @@ static int open_connect_dialog(void)
     nw.FirstGadget = &g_conn_host_gad;
     nw.CheckMark = 0;
     nw.Title = (STRPTR)"Connect";
-    nw.Screen = 0;
     nw.BitMap = 0;
     nw.MinWidth = 424;
     nw.MinHeight = 152;
     nw.MaxWidth = 424;
     nw.MaxHeight = 152;
-    nw.Type = WBENCHSCREEN;
+    set_window_screen(&nw);
     cw = OpenWindow(&nw);
     if (!cw) {
         copy_status("Connect window failed");
@@ -1387,10 +1454,18 @@ static void restore_terminal_palette(void)
 
 static int open_window(void)
 {
-    set_initial_window_size();
-    g_win = OpenWindow(&g_new_window);
-    if (!g_win)
+    if (!open_custom_screen())
         return 0;
+    set_initial_window_size();
+    set_window_screen(&g_new_window);
+    g_win = OpenWindow(&g_new_window);
+    if (!g_win) {
+        if (g_custom_screen) {
+            CloseScreen(g_custom_screen);
+            g_custom_screen = 0;
+        }
+        return 0;
+    }
     apply_terminal_palette();
     if (!dct13_term_init(&g_term, g_win,
         (WORD)(g_win->BorderLeft + TERMINAL_MARGIN),
@@ -1400,6 +1475,10 @@ static int open_window(void)
         restore_terminal_palette();
         CloseWindow(g_win);
         g_win = 0;
+        if (g_custom_screen) {
+            CloseScreen(g_custom_screen);
+            g_custom_screen = 0;
+        }
         return 0;
     }
     if (g_cfg.font[0] && g_cfg.font_size)
@@ -1419,6 +1498,10 @@ static void close_window(void)
         restore_terminal_palette();
         CloseWindow(g_win);
         g_win = 0;
+    }
+    if (g_custom_screen) {
+        CloseScreen(g_custom_screen);
+        g_custom_screen = 0;
     }
 }
 
@@ -1561,6 +1644,28 @@ static void start_zmodem_download(void)
         copy_status("ZModem download failed");
 }
 
+static void switch_screen_mode(void)
+{
+    UBYTE new_mode;
+
+    new_mode = g_use_custom_screen ? 0 : 1;
+    disconnect();
+    close_window();
+    g_use_custom_screen = new_mode;
+    if (!open_window()) {
+        if (new_mode) {
+            g_use_custom_screen = 0;
+            if (open_window()) {
+                copy_status("Own screen failed");
+                return;
+            }
+        }
+        g_running = 0;
+        return;
+    }
+    copy_status(new_mode ? "Own screen" : "Workbench screen");
+}
+
 static void handle_menu(UWORD code)
 {
     struct MenuItem *item;
@@ -1591,6 +1696,8 @@ static void handle_menu(UWORD code)
                 open_font_selector();
             else if (item_no == 1)
                 save_settings();
+            else if (item_no == 2)
+                switch_screen_mode();
         }
         code = item ? item->NextSelect : MENUNULL;
     }

@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.24 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.25 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -803,7 +803,7 @@ static void open_font_selector(void)
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS;
-    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET |
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR |
         WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = &g_font_up_gad;
     nw.CheckMark = 0;
@@ -888,7 +888,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.24", text_len("Version: v0.24"));
+    Text(win->RPort, (STRPTR)"Version: v0.25", text_len("Version: v0.25"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -919,7 +919,7 @@ static void open_info_dialog(void)
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP;
-    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET |
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR |
         WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = &g_info_ok_gad;
     nw.CheckMark = 0;
@@ -1284,7 +1284,7 @@ static int open_connect_dialog(void)
     nw.DetailPen = 0;
     nw.BlockPen = 1;
     nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS;
-    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET |
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR |
         WFLG_ACTIVATE | WFLG_SMART_REFRESH;
     nw.FirstGadget = &g_conn_host_gad;
     nw.CheckMark = 0;

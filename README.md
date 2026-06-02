@@ -6,7 +6,7 @@ classic Amiga systems.
 Version:
 
 ```text
-MiniTelnet v0.22 by Marcel Jaehne (c)2026
+MiniTelnet v0.23 by Marcel Jaehne (c)2026
 ```
 
 It was split out of TheWire13 and remains designed for AmigaOS 1.3, 68000, and
@@ -16,7 +16,7 @@ stack APIs.
 
 ## Features
 
-- Plain Intuition GUI, no GadTools/MUI/ReAction/ASL; borderless fullscreen terminal window with menu-driven controls. Workbench remains the default screen, with `Settings -> Own Screen` available for a dedicated ANSI palette screen.
+- Plain Intuition GUI, no GadTools/MUI/ReAction/ASL; borderless fullscreen terminal on a dedicated custom screen with menu-driven controls.
 - Menu-driven operation: `Project -> Connect` opens a Host/Port dialog with an integrated address book; `minitelnet.conf` load/save persists settings.
 - Telnet IAC filtering.
 - Internal ANSI/VT100 parser with CP437/IBM BBS character handling and ANSI color rendering.

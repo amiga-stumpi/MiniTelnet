@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.22 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.23 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -97,7 +97,6 @@ static UWORD g_font_size_selected;
 static UWORD g_old_colors[8];
 static UWORD g_old_color_count;
 static UBYTE g_palette_saved;
-static UBYTE g_use_custom_screen;
 struct AddrBookEntry {
     char name[ADDR_NAME_SIZE];
     char host[DCT13_HOST_SIZE];
@@ -172,7 +171,6 @@ static struct IntuiText g_menu_info_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Info
 static struct IntuiText g_menu_quit_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Quit", 0 };
 static struct IntuiText g_menu_font_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Terminal Font...", 0 };
 static struct IntuiText g_menu_save_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Save Settings", 0 };
-static struct IntuiText g_menu_screen_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Own Screen", 0 };
 
 static struct MenuItem g_project_quit_item = {
     0, 0, 50, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
@@ -202,12 +200,8 @@ static struct MenuItem g_settings_save_item = {
     0, 0, 10, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_save_text, 0, 0, 0, MENUNULL
 };
-static struct MenuItem g_settings_screen_item = {
-    &g_settings_save_item, 0, 20, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
-    (APTR)&g_menu_screen_text, 0, 0, 0, MENUNULL
-};
 static struct MenuItem g_settings_font_item = {
-    &g_settings_screen_item, 0, 0, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    &g_settings_save_item, 0, 0, 150, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_font_text, 0, 0, 0, MENUNULL
 };
 
@@ -260,7 +254,7 @@ static struct NewWindow g_new_window = {
     0,
     0,
     420, 150, 1000, 600,
-    WBENCHSCREEN
+    CUSTOMSCREEN
 };
 
 static struct NewScreen g_new_screen = {
@@ -274,12 +268,10 @@ static struct NewScreen g_new_screen = {
     0
 };
 
-static struct Screen *current_screen_for_window(void)
+static struct Screen *base_screen_for_size(void)
 {
     struct Screen *screen;
 
-    if (g_use_custom_screen && g_custom_screen)
-        return g_custom_screen;
     screen = 0;
     if (IntuitionBase) {
         screen = IntuitionBase->ActiveScreen;
@@ -289,17 +281,19 @@ static struct Screen *current_screen_for_window(void)
     return screen;
 }
 
+static struct Screen *current_screen_for_window(void)
+{
+    if (g_custom_screen)
+        return g_custom_screen;
+    return base_screen_for_size();
+}
+
 static void set_window_screen(struct NewWindow *nw)
 {
     if (!nw)
         return;
-    if (g_use_custom_screen && g_custom_screen) {
-        nw->Screen = g_custom_screen;
-        nw->Type = CUSTOMSCREEN;
-    } else {
-        nw->Screen = 0;
-        nw->Type = WBENCHSCREEN;
-    }
+    nw->Screen = g_custom_screen;
+    nw->Type = CUSTOMSCREEN;
 }
 
 static void set_initial_window_size(void)
@@ -331,12 +325,10 @@ static int open_custom_screen(void)
 {
     struct Screen *base;
 
-    if (!g_use_custom_screen)
-        return 1;
     if (g_custom_screen)
         return 1;
 
-    base = current_screen_for_window();
+    base = base_screen_for_size();
     if (base) {
         g_new_screen.Width = base->Width;
         g_new_screen.Height = base->Height;
@@ -1486,9 +1478,8 @@ static int open_window(void)
     dct13_term_set_mode(&g_term, g_cfg.terminal_mode);
     SetMenuStrip(g_win, &g_project_menu);
     dct13_term_clear(&g_term);
-    if (g_use_custom_screen)
-        dct13_term_write(&g_term, (const UBYTE *)"[MiniTelnet Own Screen]\r\n", 24);
-    copy_status(g_use_custom_screen ? "Own screen" : "Ready");
+    dct13_term_write(&g_term, (const UBYTE *)"[MiniTelnet Own Screen]\r\n", 24);
+    copy_status("Own screen");
     return 1;
 }
 
@@ -1646,28 +1637,6 @@ static void start_zmodem_download(void)
         copy_status("ZModem download failed");
 }
 
-static void switch_screen_mode(void)
-{
-    UBYTE new_mode;
-
-    new_mode = g_use_custom_screen ? 0 : 1;
-    disconnect();
-    close_window();
-    g_use_custom_screen = new_mode;
-    if (!open_window()) {
-        if (new_mode) {
-            g_use_custom_screen = 0;
-            if (open_window()) {
-                copy_status("Own screen failed");
-                return;
-            }
-        }
-        g_running = 0;
-        return;
-    }
-    copy_status(new_mode ? "Own screen" : "Workbench screen");
-}
-
 static void handle_menu(UWORD code)
 {
     struct MenuItem *item;
@@ -1697,8 +1666,6 @@ static void handle_menu(UWORD code)
             if (item_no == 0)
                 open_font_selector();
             else if (item_no == 1)
-                switch_screen_mode();
-            else if (item_no == 2)
                 save_settings();
         }
         code = item ? item->NextSelect : MENUNULL;

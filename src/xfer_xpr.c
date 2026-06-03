@@ -76,6 +76,9 @@ static UBYTE g_xpr_ff_pending;
 static char g_status[96];
 static char g_byte_buf[512];
 static char g_send_buf[1024];
+static UBYTE g_prefix_buf[256];
+static UWORD g_prefix_len;
+static UWORD g_prefix_pos;
 static struct Amitcp13BsdFdSet g_rfds;
 static struct Amitcp13BsdFdSet g_wfds;
 static struct Amitcp13BsdTimeVal g_timeout;
@@ -274,9 +277,18 @@ static long xpr_sread_cb(register char *buffer __asm("a0"),
 {
     int r;
     long usec;
+    UWORD n;
 
     if (!buffer || size <= 0 || !g_xpr_net || !g_xpr_net->base || g_xpr_net->fd < 0)
         return -1;
+    if (g_prefix_pos < g_prefix_len) {
+        n = (UWORD)(g_prefix_len - g_prefix_pos);
+        if ((long)n > size)
+            n = (UWORD)size;
+        CopyMem(&g_prefix_buf[g_prefix_pos], buffer, n);
+        g_prefix_pos = (UWORD)(g_prefix_pos + n);
+        return n;
+    }
     usec = timeout;
     if (usec == 0)
         usec = 1000;
@@ -534,15 +546,27 @@ static void init_xio(void)
     g_xio.xpr_extension = XPR_EXTENSION;
 }
 
-int dct13_xpr_receive_zmodem(struct Dct13Net *net,
-                             Dct13XferStatusFunc status_func,
-                             void *status_user)
+int dct13_xpr_receive_zmodem_prefixed(struct Dct13Net *net,
+                                      Dct13XferStatusFunc status_func,
+                                      void *status_user,
+                                      const UBYTE *prefix,
+                                      UWORD prefix_len)
 {
     long rc;
     char setup_opts[] = "TC,OR,B32,FO,AN,DN,KY,SN,RN";
 
     if (!net || !net->base || net->fd < 0)
         return DCT13_XFER_NOT_CONNECTED;
+    if (prefix && prefix_len > 0) {
+        if (prefix_len > sizeof(g_prefix_buf))
+            prefix_len = sizeof(g_prefix_buf);
+        CopyMem((APTR)prefix, g_prefix_buf, prefix_len);
+        g_prefix_len = prefix_len;
+        g_prefix_pos = 0;
+    } else {
+        g_prefix_len = 0;
+        g_prefix_pos = 0;
+    }
     g_xpr_net = net;
     g_xpr_status_func = status_func;
     g_xpr_status_user = status_user;
@@ -574,4 +598,11 @@ int dct13_xpr_receive_zmodem(struct Dct13Net *net,
     }
     status_text("ZModem download complete");
     return DCT13_XFER_OK;
+}
+
+int dct13_xpr_receive_zmodem(struct Dct13Net *net,
+                             Dct13XferStatusFunc status_func,
+                             void *status_user)
+{
+    return dct13_xpr_receive_zmodem_prefixed(net, status_func, status_user, 0, 0);
 }

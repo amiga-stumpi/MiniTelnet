@@ -21,8 +21,8 @@ stack APIs.
 - Telnet IAC filtering.
 - Internal ANSI/VT100 parser with CP437/IBM BBS character handling and ANSI color rendering.
 - Runtime terminal font selection from `FONTS:`.
-- XPR ZModem download via `Project -> ZModem Download` and
-  `xprzmodem.library`.
+- XPR ZModem download via automatic ZModem start detection or
+  `Project -> ZModem Download` and `xprzmodem.library`.
 
 ## Requirements
 
@@ -79,6 +79,9 @@ terminal_mode=ANSI_IBM
 ## Current Limitations
 
 - XPR support is currently download-only.
+- ZModem receive starts automatically when the remote sender emits a standard
+  ZModem header; the manual `Project -> ZModem Download` entry remains available
+  as a fallback.
 - XPR transfer is synchronous and blocks the UI while active.
 - XEM libraries are not used because the available XEM builds require `keymap.library`, which is not part of a plain OS1.3 setup.
 - No address book yet.

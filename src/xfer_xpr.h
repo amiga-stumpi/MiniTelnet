@@ -15,5 +15,10 @@ int dct13_xpr_available(void);
 int dct13_xpr_receive_zmodem(struct Dct13Net *net,
                              Dct13XferStatusFunc status_func,
                              void *status_user);
+int dct13_xpr_receive_zmodem_prefixed(struct Dct13Net *net,
+                                      Dct13XferStatusFunc status_func,
+                                      void *status_user,
+                                      const UBYTE *prefix,
+                                      UWORD prefix_len);
 
 #endif

@@ -115,6 +115,7 @@ static int g_running;
 static void resize_terminal(void);
 static void redraw(void);
 static void copy_cfg_text(char *dst, UWORD max, const char *src);
+static void xfer_status_callback(const char *text, void *user);
 
 static struct StringInfo g_host_si = {
     (STRPTR)g_cfg.host, (STRPTR)g_host_undo, 0, DCT13_HOST_SIZE,
@@ -1658,6 +1659,41 @@ static void send_key(UBYTE ch)
         dct13_net_send(&g_net, &ch, 1);
 }
 
+
+static int find_zmodem_autostart(const UBYTE *data, UWORD len)
+{
+    UWORD i;
+
+    if (!data || len < 4)
+        return -1;
+    for (i = 0; i + 3 < len; ++i) {
+        if (data[i] == '*' && data[i + 1] == '*' &&
+            data[i + 2] == 0x18 &&
+            (data[i + 3] == 'B' || data[i + 3] == 'C'))
+            return (int)i;
+    }
+    return -1;
+}
+
+static void start_zmodem_download_prefixed(const UBYTE *prefix, UWORD prefix_len)
+{
+    int rc;
+
+    if (!dct13_net_connected(&g_net)) {
+        copy_status("Not connected");
+        return;
+    }
+    copy_status("Auto ZModem download...");
+    rc = dct13_xpr_receive_zmodem_prefixed(&g_net, xfer_status_callback, 0,
+                                           prefix, prefix_len);
+    if (rc == DCT13_XFER_NO_LIBRARY)
+        copy_status("xprzmodem.library missing");
+    else if (rc == DCT13_XFER_NOT_CONNECTED)
+        copy_status("Not connected");
+    else if (rc != DCT13_XFER_OK)
+        copy_status("ZModem download failed");
+}
+
 static void poll_net(void)
 {
     int r;
@@ -1676,8 +1712,16 @@ static void poll_net(void)
             reply_len = (UWORD)(packed >> 8);
             if (reply_len)
                 dct13_net_send(&g_net, g_iac_reply, reply_len);
-            if (out_len)
+            if (out_len) {
+                int zpos = find_zmodem_autostart(g_term_buf, out_len);
+                if (zpos >= 0) {
+                    if (zpos > 0)
+                        dct13_term_write(&g_term, g_term_buf, (UWORD)zpos);
+                    start_zmodem_download_prefixed(&g_term_buf[zpos], (UWORD)(out_len - zpos));
+                    return;
+                }
                 dct13_term_write(&g_term, g_term_buf, out_len);
+            }
             continue;
         }
         if (r == DCT13_NET_CLOSED) {

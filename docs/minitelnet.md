@@ -106,14 +106,15 @@ Supported keys are `host`, `port`, `font`, `font_size`, and `terminal_mode`. Inv
 
 ## ZModem Download
 
-`Project -> ZModem Download` opens `xprzmodem.library`, installs MiniTelnet socket and file callbacks, and starts XPR receive mode. Incoming ZModem bytes are read directly from the active Telnet socket, with Telnet `0xff` escaping collapsed before data is passed to XPR. Files are written in the current startup drawer because there is no ReqTools path requester yet.
+MiniTelnet automatically starts XPR receive mode when incoming Telnet data contains a standard ZModem start header. The bytes that triggered detection are passed to XPR first so the transfer header is not lost. `Project -> ZModem Download` remains available as a manual fallback; it opens `xprzmodem.library`, installs MiniTelnet socket and file callbacks, and starts XPR receive mode. Incoming ZModem bytes are read directly from the active Telnet socket, with Telnet `0xff` escaping collapsed before data is passed to XPR. Files are written in the current startup drawer because there is no ReqTools path requester yet.
 
 Limitations for v0.29:
 
 - Download only; upload is not enabled yet.
 - The transfer runs synchronously and the main window is not fully interactive until it completes.
 - `xprzmodem.library` must be copied to `LIBS:`.
-- Start the download after the remote BBS has begun a ZModem send.
+- Automatic detection expects the normal ZModem `**<CAN>B`/`**<CAN>C` header after Telnet filtering.
+- Use the manual menu entry if a BBS uses an unusual sender sequence.
 
 ## XEM Terminal Library
 

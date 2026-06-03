@@ -20,7 +20,7 @@
 #include "terminal.h"
 #include "xfer_xpr.h"
 
-#define TITLE "MiniTelnet v0.29 by Marcel Jaehne (c)2026"
+#define TITLE "MiniTelnet v0.30 by Marcel Jaehne (c)2026"
 #define RX_SIZE 240
 #define TERM_SIZE 240
 #define IAC_REPLY_SIZE 96
@@ -171,26 +171,21 @@ static struct Gadget g_conn_host_gad = {
 static struct IntuiText g_menu_connect_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Connect", 0 };
 static struct IntuiText g_menu_hangup_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Hangup", 0 };
 static struct IntuiText g_menu_clear_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Clear", 0 };
-static struct IntuiText g_menu_zdownload_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"ZModem Download", 0 };
 static struct IntuiText g_menu_info_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Info", 0 };
 static struct IntuiText g_menu_quit_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Quit", 0 };
 static struct IntuiText g_menu_font_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Terminal Font...", 0 };
 static struct IntuiText g_menu_save_text = { 0, 1, JAM2, 6, 1, 0, (UBYTE *)"Save Settings", 0 };
 
 static struct MenuItem g_project_quit_item = {
-    0, 0, 50, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    0, 0, 40, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_quit_text, 0, 0, 0, MENUNULL
 };
 static struct MenuItem g_project_info_item = {
-    &g_project_quit_item, 0, 40, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    &g_project_quit_item, 0, 30, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_info_text, 0, 0, 0, MENUNULL
 };
-static struct MenuItem g_project_zdownload_item = {
-    &g_project_info_item, 0, 30, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
-    (APTR)&g_menu_zdownload_text, 0, 0, 0, MENUNULL
-};
 static struct MenuItem g_project_clear_item = {
-    &g_project_zdownload_item, 0, 20, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
+    &g_project_info_item, 0, 20, 132, 10, ITEMTEXT | ITEMENABLED | HIGHCOMP, 0,
     (APTR)&g_menu_clear_text, 0, 0, 0, MENUNULL
 };
 static struct MenuItem g_project_hangup_item = {
@@ -927,7 +922,7 @@ static void draw_info_dialog(struct Window *win)
     Move(win->RPort, 14, 25);
     Text(win->RPort, (STRPTR)"MiniTelnet for Kick1.3", text_len("MiniTelnet for Kick1.3"));
     Move(win->RPort, 14, 39);
-    Text(win->RPort, (STRPTR)"Version: v0.29", text_len("Version: v0.29"));
+    Text(win->RPort, (STRPTR)"Version: v0.30", text_len("Version: v0.30"));
     Move(win->RPort, 14, 53);
     Text(win->RPort, (STRPTR)"by Marcel Jaehne", text_len("by Marcel Jaehne"));
     Move(win->RPort, 14, 67);
@@ -1504,7 +1499,7 @@ static void make_startup_message(char *dst, ULONG dst_size)
 
     pos = 0;
     chip_kb = (g_screen_chip_free + 1023UL) / 1024UL;
-    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.29 - i found ");
+    append_text(dst, dst_size, &pos, "Welcome to MiniTel v0.30 - i found ");
     append_ulong(dst, &pos, dst_size, chip_kb);
     append_text(dst, dst_size, &pos, " KB of chipram so ");
     append_uword(dst, &pos, dst_size, g_screen_depth);
@@ -1744,24 +1739,6 @@ static void xfer_status_callback(const char *text, void *user)
     copy_status(text);
 }
 
-static void start_zmodem_download(void)
-{
-    int rc;
-
-    if (!dct13_net_connected(&g_net)) {
-        copy_status("Not connected");
-        return;
-    }
-    copy_status("Starting ZModem download...");
-    rc = dct13_xpr_receive_zmodem(&g_net, xfer_status_callback, 0);
-    if (rc == DCT13_XFER_NO_LIBRARY)
-        copy_status("xprzmodem.library missing");
-    else if (rc == DCT13_XFER_NOT_CONNECTED)
-        copy_status("Not connected");
-    else if (rc != DCT13_XFER_OK)
-        copy_status("ZModem download failed");
-}
-
 static void handle_menu(UWORD code)
 {
     struct MenuItem *item;
@@ -1782,10 +1759,8 @@ static void handle_menu(UWORD code)
             else if (item_no == 2)
                 clear_terminal_view();
             else if (item_no == 3)
-                start_zmodem_download();
-            else if (item_no == 4)
                 open_info_dialog();
-            else if (item_no == 5)
+            else if (item_no == 4)
                 g_running = 0;
         } else if (menu == 1) {
             if (item_no == 0)
